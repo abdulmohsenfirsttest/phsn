@@ -424,11 +424,37 @@
 
 <script>
 // ==================== STATE ====================
+const STORAGE_KEY = 'phsn_data';
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved) return saved;
+  } catch {}
+  return { products: [], requests: [], pos: [], inventory: [], poCounter: 1, reqCounter: 1 };
+}
+
+function persist() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    products:   S.products,
+    requests:   S.requests,
+    pos:        S.pos,
+    inventory:  S.inventory,
+    poCounter:  S.poCounter,
+    reqCounter: S.reqCounter
+  }));
+}
+
+const _saved = loadState();
 const S = {
   user: 'Admin', role: 'admin',
-  products: [], requests: [], pos: [], inventory: [],
+  products:   _saved.products,
+  requests:   _saved.requests,
+  pos:        _saved.pos,
+  inventory:  _saved.inventory,
   reqFilter: 'all', invFilter: 'all',
-  poCounter: 1, reqCounter: 1,
+  poCounter:  _saved.poCounter,
+  reqCounter: _saved.reqCounter,
   activePO: null
 };
 
@@ -517,14 +543,14 @@ function saveProduct() {
   });
   ['p-name','p-sku','p-price','p-min-stock'].forEach(id => document.getElementById(id).value = '');
   toggleForm('addProductForm');
-  renderProducts(); updateDashboard();
+  persist(); renderProducts(); updateDashboard();
   toast('Product added');
 }
 
 function deleteProduct(id) {
   if (!confirm('Delete this product?')) return;
   S.products = S.products.filter(p => p.id !== id);
-  renderProducts(); updateDashboard();
+  persist(); renderProducts(); updateDashboard();
   toast('Product deleted');
 }
 
@@ -576,7 +602,7 @@ function saveRequest() {
   });
   ['r-item','r-qty','r-supplier','r-price','r-notes'].forEach(id => document.getElementById(id).value = '');
   toggleForm('addRequestForm');
-  renderRequests(); updateDashboard();
+  persist(); renderRequests(); updateDashboard();
   toast('Request submitted for approval');
 }
 
@@ -585,7 +611,7 @@ function approveRequest(id) {
   if (!req) return;
   req.status = 'approved'; req.approvedBy = S.user; req.approvedAt = new Date().toISOString();
   S.pos.push({ id: Date.now(), poNumber: `PO-${String(S.poCounter++).padStart(4,'0')}`, ...req, issuedBy: S.user, issuedAt: req.approvedAt, status: 'issued' });
-  renderRequests(); renderPOs(); updateDashboard();
+  persist(); renderRequests(); renderPOs(); updateDashboard();
   toast(`Approved ✓  PO-${String(S.poCounter-1).padStart(4,'0')} generated`);
 }
 
@@ -593,7 +619,7 @@ function rejectRequest(id) {
   const req = S.requests.find(r => r.id === id);
   if (!req) return;
   req.status = 'rejected';
-  renderRequests(); updateDashboard();
+  persist(); renderRequests(); updateDashboard();
   toast('Request rejected');
 }
 
@@ -730,7 +756,7 @@ function saveInventory() {
   });
   ['i-item','i-qty','i-ref','i-notes'].forEach(id => document.getElementById(id).value = '');
   toggleForm('addInventoryForm');
-  renderInventory(); renderProducts(); updateDashboard();
+  persist(); renderInventory(); renderProducts(); updateDashboard();
   toast('Stock movement recorded');
 }
 
