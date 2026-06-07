@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     ::-webkit-scrollbar{width:5px;height:5px}
     ::-webkit-scrollbar-track{background:#f1f5f9}
@@ -510,31 +511,18 @@
 </style>
 
 <script>
-// ==================== STORAGE ====================
-const KEY = 'phsn_v2';
-function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d) return d; } catch {}
-  return { suppliers:[], products:[], requests:[], pos:[], inventory:[], poCounter:1, reqCounter:1, supCounter:1 };
-}
-function persist() {
-  localStorage.setItem(KEY, JSON.stringify({
-    suppliers: S.suppliers, products: S.products, requests: S.requests,
-    pos: S.pos, inventory: S.inventory,
-    poCounter: S.poCounter, reqCounter: S.reqCounter, supCounter: S.supCounter
-  }));
-}
-const _d = load();
+// ==================== SUPABASE ====================
+const { createClient } = supabase;
+const sb = createClient(
+  'https://ylevtnhbmdftufnhedis.supabase.co',
+  'sb_publishable_a68c9bBoXPKgAcnPA3xAew_tZDInx3v'
+);
+
+// ==================== STATE ====================
 const S = {
   user:'Admin', role:'admin',
-  suppliers:  _d.suppliers,
-  products:   _d.products,
-  requests:   _d.requests,
-  pos:        _d.pos,
-  inventory:  _d.inventory,
+  suppliers:[], products:[], requests:[], pos:[], inventory:[],
   reqFilter:'all', invFilter:'all', poFilter:'all',
-  poCounter:  _d.poCounter,
-  reqCounter: _d.reqCounter,
-  supCounter: _d.supCounter,
   activePO: null
 };
 
@@ -547,7 +535,7 @@ function toggleDark() {
 }
 
 // ==================== INIT ====================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const t = localStorage.getItem('theme');
   const sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
   if (t === 'dark' || (!t && sys)) {
@@ -556,8 +544,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('iconMoon').classList.add('hidden');
   }
   document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+  setLoading(true);
+  await refreshAll();
+  setLoading(false);
   updateDashboard();
 });
+
+function setLoading(v) {
+  const el = document.getElementById('loadingBar');
+  if (el) el.classList.toggle('hidden', !v);
+}
+
+async function refreshAll() {
+  const [s, p, r, po, inv] = await Promise.all([
+    sb.from('suppliers').select('*').order('created_at'),
+    sb.from('products').select('*').order('created_at'),
+    sb.from('requests').select('*').order('submitted_at'),
+    sb.from('purchase_orders').select('*').order('issued_at'),
+    sb.from('inventory').select('*').order('created_at')
+  ]);
+  if (s.error) { toast('Could not connect to database. Check Supabase setup.', true); console.error(s.error); return; }
+  S.suppliers = s.data  || [];
+  S.products  = p.data  || [];
+  S.requests  = r.data  || [];
+  S.pos       = po.data || [];
+  S.inventory = inv.data|| [];
+}
 
 // ==================== NAV ====================
 function showView(v) {
@@ -567,7 +579,7 @@ function showView(v) {
   document.getElementById('nav-' + v).classList.add('active');
   const T = {
     dashboard: ['Dashboard','Overview of procurement activities'],
-    suppliers:  ['Suppliers','Manage your supplier directory'],
+    suppliers: ['Suppliers','Manage your supplier directory'],
     products:  ['Products','Manage your product catalog'],
     requests:  ['Requests & Quotations','Submit and manage purchase requests'],
     pos:       ['Purchase Orders','View and manage approved purchase orders'],
@@ -587,7 +599,7 @@ function toggleForm(id) {
   const el = document.getElementById(id);
   el.classList.toggle('hidden');
   if (!el.classList.contains('hidden')) {
-    if (id === 'addRequestForm')  { document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000); populateSupplierDropdown(); }
+    if (id === 'addRequestForm')   { document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000); populateSupplierDropdown(); }
     if (id === 'addInventoryForm') document.getElementById('i-date').valueAsDate = new Date();
   }
 }
@@ -600,7 +612,7 @@ function toast(msg, err=false) {
   el.querySelector('svg').classList.toggle('text-red-400',err);
   el.classList.remove('hidden');
   clearTimeout(_tt);
-  _tt = setTimeout(()=>el.classList.add('hidden'),3000);
+  _tt = setTimeout(()=>el.classList.add('hidden'), 3500);
 }
 
 function fmt(n) { return Number(n).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -608,36 +620,47 @@ function today() { return new Date().toISOString().split('T')[0]; }
 function q(id)   { return document.getElementById(id).value.trim(); }
 function getStock(name) {
   return S.inventory.filter(m=>m.item.toLowerCase()===name.toLowerCase())
-    .reduce((s,m)=>m.type==='in'?s+m.qty:s-m.qty,0);
+    .reduce((s,m)=>m.type==='in'?s+Number(m.qty):s-Number(m.qty), 0);
 }
 function search(id) { return (document.getElementById(id)?.value||'').toLowerCase(); }
 
 // ==================== SUPPLIERS ====================
-function saveSupplier() {
+async function saveSupplier() {
   const name = q('s-name');
-  if (!name) { toast('Company name is required',true); return; }
-  S.suppliers.push({ id:Date.now(), code:`SUP-${String(S.supCounter++).padStart(3,'0')}`, name, contact:q('s-contact'), phone:q('s-phone'), email:q('s-email'), address:q('s-address'), status:document.getElementById('s-status').value, createdAt:new Date().toISOString() });
+  if (!name) { toast('Company name is required', true); return; }
+  const code = `SUP-${String(S.suppliers.length + 1).padStart(3,'0')}`;
+  const { data, error } = await sb.from('suppliers').insert({
+    code, name, contact:q('s-contact'), phone:q('s-phone'),
+    email:q('s-email'), address:q('s-address'),
+    status: document.getElementById('s-status').value
+  }).select().single();
+  if (error) { toast('Error saving supplier: ' + error.message, true); return; }
+  S.suppliers.push(data);
   ['s-name','s-contact','s-phone','s-email','s-address'].forEach(id=>document.getElementById(id).value='');
   toggleForm('addSupplierForm');
-  persist(); renderSuppliers(); updateDashboard();
+  renderSuppliers(); updateDashboard();
   toast('Supplier added');
 }
-function deleteSupplier(id) {
+
+async function deleteSupplier(id) {
   if (!confirm('Delete this supplier?')) return;
+  const { error } = await sb.from('suppliers').delete().eq('id', id);
+  if (error) { toast('Error deleting supplier', true); return; }
   S.suppliers = S.suppliers.filter(s=>s.id!==id);
-  persist(); renderSuppliers(); updateDashboard();
+  renderSuppliers(); updateDashboard();
   toast('Supplier deleted');
 }
+
 function renderSuppliers() {
   const tb = document.getElementById('suppliersTbody');
   const kw = search('search-suppliers');
   let list = S.suppliers.filter(s=> !kw || s.name.toLowerCase().includes(kw) || (s.contact||'').toLowerCase().includes(kw));
-  if (!list.length) { tb.innerHTML=`<tr><td colspan="9" class="empty-row">${kw?'No results':'No suppliers yet — click "Add Supplier"'}</td></tr>`; return; }
+  if (!list.length) { tb.innerHTML=`<tr><td colspan="9" class="empty-row">${kw?'No results':'No suppliers yet'}</td></tr>`; return; }
   tb.innerHTML = list.map((s,i)=>{
     const pos = S.pos.filter(p=>p.supplier===s.name).length;
     return `<tr class="border-t border-gray-100 dark:border-gray-800 dr">
       <td class="td text-gray-400 dark:text-gray-500">${i+1}</td>
-      <td class="td font-semibold text-gray-900 dark:text-white">${s.name}<div class="text-xs text-gray-400 font-mono">${s.code}</div></td>
+      <td class="td font-semibold text-gray-900 dark:text-white">${s.name}<div class="text-xs text-gray-400 font-mono">${s.code||''}</div></td>
       <td class="td text-gray-600 dark:text-gray-400">${s.contact||'—'}</td>
       <td class="td text-gray-600 dark:text-gray-400">${s.phone||'—'}</td>
       <td class="td text-gray-600 dark:text-gray-400">${s.email||'—'}</td>
@@ -648,43 +671,58 @@ function renderSuppliers() {
     </tr>`;
   }).join('');
 }
+
 function populateSupplierDropdown() {
   const sel = document.getElementById('r-supplier');
   if (!sel) return;
   const cur = sel.value;
-  sel.innerHTML = '<option value="">— Select supplier —</option>' + S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
+  sel.innerHTML = '<option value="">— Select supplier —</option>' +
+    S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
   sel.value = cur;
 }
 
 // ==================== PRODUCTS ====================
-function saveProduct() {
+async function saveProduct() {
   const name = q('p-name');
-  if (!name) { toast('Product name is required',true); return; }
-  S.products.push({ id:Date.now(), name, sku:q('p-sku')||`SKU-${String(S.products.length+1).padStart(3,'0')}`, category:document.getElementById('p-cat').value, unit:document.getElementById('p-unit').value, price:parseFloat(document.getElementById('p-price').value)||0, minStock:parseInt(document.getElementById('p-min-stock').value)||0 });
+  if (!name) { toast('Product name is required', true); return; }
+  const sku = q('p-sku') || `SKU-${String(S.products.length+1).padStart(3,'0')}`;
+  const { data, error } = await sb.from('products').insert({
+    name, sku,
+    category:  document.getElementById('p-cat').value,
+    unit:      document.getElementById('p-unit').value,
+    price:     parseFloat(document.getElementById('p-price').value) || 0,
+    min_stock: parseInt(document.getElementById('p-min-stock').value) || 0
+  }).select().single();
+  if (error) { toast('Error saving product: ' + error.message, true); return; }
+  S.products.push(data);
   ['p-name','p-sku','p-price','p-min-stock'].forEach(id=>document.getElementById(id).value='');
   toggleForm('addProductForm');
-  persist(); renderProducts(); updateDashboard();
+  renderProducts(); updateDashboard();
   toast('Product added');
 }
-function deleteProduct(id) {
+
+async function deleteProduct(id) {
   if (!confirm('Delete this product?')) return;
+  const { error } = await sb.from('products').delete().eq('id', id);
+  if (error) { toast('Error deleting product', true); return; }
   S.products = S.products.filter(p=>p.id!==id);
-  persist(); renderProducts(); updateDashboard();
+  renderProducts(); updateDashboard();
   toast('Product deleted');
 }
+
 function renderProducts() {
   const tb = document.getElementById('productsTbody');
   const kw = search('search-products');
-  let list = S.products.filter(p=> !kw || p.name.toLowerCase().includes(kw) || p.sku.toLowerCase().includes(kw) || p.category.toLowerCase().includes(kw));
+  let list = S.products.filter(p=> !kw || p.name.toLowerCase().includes(kw) || (p.sku||'').toLowerCase().includes(kw) || (p.category||'').toLowerCase().includes(kw));
   if (!list.length) { tb.innerHTML=`<tr><td colspan="9" class="empty-row">${kw?'No results':'No products yet'}</td></tr>`; return; }
   tb.innerHTML = list.map((p,i)=>{
-    const stock=getStock(p.name), low=stock<=p.minStock;
+    const stock=getStock(p.name), low=stock<=p.min_stock;
     return `<tr class="border-t border-gray-100 dark:border-gray-800 dr">
       <td class="td text-gray-400 dark:text-gray-500">${i+1}</td>
       <td class="td font-semibold text-gray-900 dark:text-white">${p.name}</td>
-      <td class="td font-mono text-xs text-gray-400 dark:text-gray-500">${p.sku}</td>
-      <td class="td text-gray-600 dark:text-gray-400">${p.category}</td>
-      <td class="td text-gray-600 dark:text-gray-400">${p.unit}</td>
+      <td class="td font-mono text-xs text-gray-400 dark:text-gray-500">${p.sku||''}</td>
+      <td class="td text-gray-600 dark:text-gray-400">${p.category||''}</td>
+      <td class="td text-gray-600 dark:text-gray-400">${p.unit||''}</td>
       <td class="td text-gray-900 dark:text-gray-200">SAR ${fmt(p.price)}</td>
       <td class="td font-bold ${low?'text-red-600 dark:text-red-400':'text-gray-900 dark:text-white'}">${stock}</td>
       <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${low?'badge-orange':'badge-green'}">${low?'Low Stock':'In Stock'}</span></td>
@@ -692,57 +730,87 @@ function renderProducts() {
     </tr>`;
   }).join('');
 }
+
 function exportProductsCSV() {
-  if (!S.products.length) { toast('No products to export',true); return; }
-  const rows=[['Name','SKU','Category','Unit','Price','Stock'],...S.products.map(p=>[p.name,p.sku,p.category,p.unit,p.price,getStock(p.name)])];
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'})); a.download='phsn-products.csv'; a.click();
+  if (!S.products.length) { toast('No products to export', true); return; }
+  const rows = [['Name','SKU','Category','Unit','Price','Stock'], ...S.products.map(p=>[p.name,p.sku,p.category,p.unit,p.price,getStock(p.name)])];
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'}));
+  a.download = 'phsn-products.csv'; a.click();
   toast('Products exported');
 }
 
 // ==================== REQUESTS ====================
-function saveRequest() {
-  const item=q('r-item'), qty=parseFloat(document.getElementById('r-qty').value), supplier=document.getElementById('r-supplier').value, price=parseFloat(document.getElementById('r-price').value);
-  if (!item||!qty||!supplier||!price) { toast('Please fill all required fields',true); return; }
-  S.requests.push({ id:Date.now(), ref:`REQ-${String(S.reqCounter++).padStart(4,'0')}`, item, qty, unit:document.getElementById('r-unit').value, supplier, unitPrice:price, total:qty*price, delivery:document.getElementById('r-delivery').value, notes:q('r-notes'), status:'pending', by:S.user, at:new Date().toISOString() });
+async function saveRequest() {
+  const item = q('r-item'), qty = parseFloat(document.getElementById('r-qty').value);
+  const supplier = document.getElementById('r-supplier').value;
+  const price = parseFloat(document.getElementById('r-price').value);
+  if (!item||!qty||!supplier||!price) { toast('Please fill all required fields', true); return; }
+  const ref = `REQ-${String(S.requests.length+1).padStart(4,'0')}`;
+  const { data, error } = await sb.from('requests').insert({
+    ref, item, qty, unit: document.getElementById('r-unit').value,
+    supplier, unit_price: price, total: qty*price,
+    delivery: document.getElementById('r-delivery').value || null,
+    notes: q('r-notes'), status: 'pending',
+    submitted_by: S.user, submitted_at: new Date().toISOString()
+  }).select().single();
+  if (error) { toast('Error saving request: ' + error.message, true); return; }
+  S.requests.push(data);
   ['r-item','r-qty','r-price','r-notes'].forEach(id=>document.getElementById(id).value='');
   toggleForm('addRequestForm');
-  persist(); renderRequests(); updateDashboard();
+  renderRequests(); updateDashboard();
   toast('Request submitted for approval');
 }
-function approveRequest(id) {
-  const req=S.requests.find(r=>r.id===id); if (!req) return;
-  req.status='approved'; req.approvedBy=S.user; req.approvedAt=new Date().toISOString();
-  const poNum=`PO-${String(S.poCounter++).padStart(4,'0')}`;
-  S.pos.push({id:Date.now(),poNumber:poNum,...req,issuedBy:S.user,issuedAt:req.approvedAt,deliveryStatus:'issued'});
-  persist(); renderRequests(); renderPOs(); updateDashboard();
-  toast(`Approved ✓  ${poNum} generated`);
+
+async function approveRequest(id) {
+  const req = S.requests.find(r=>r.id===id); if (!req) return;
+  const approvedAt = new Date().toISOString();
+  const poNumber   = `PO-${String(S.pos.length+1).padStart(4,'0')}`;
+  const { error: e1 } = await sb.from('requests').update({ status:'approved', approved_by:S.user, approved_at:approvedAt }).eq('id', id);
+  if (e1) { toast('Error approving request', true); return; }
+  const { data: poData, error: e2 } = await sb.from('purchase_orders').insert({
+    po_number: poNumber, item: req.item, qty: req.qty, unit: req.unit,
+    supplier: req.supplier, unit_price: req.unit_price, total: req.total,
+    delivery: req.delivery||null, notes: req.notes,
+    issued_by: S.user, issued_at: approvedAt, delivery_status: 'issued'
+  }).select().single();
+  if (e2) { toast('Error creating PO', true); return; }
+  req.status = 'approved'; req.approved_by = S.user; req.approved_at = approvedAt;
+  S.pos.push(poData);
+  renderRequests(); renderPOs(); updateDashboard();
+  toast(`Approved ✓  ${poNumber} generated`);
 }
-function rejectRequest(id) {
-  const req=S.requests.find(r=>r.id===id); if (!req) return;
-  req.status='rejected';
-  persist(); renderRequests(); updateDashboard();
+
+async function rejectRequest(id) {
+  const { error } = await sb.from('requests').update({ status:'rejected' }).eq('id', id);
+  if (error) { toast('Error rejecting request', true); return; }
+  const req = S.requests.find(r=>r.id===id);
+  if (req) req.status = 'rejected';
+  renderRequests(); updateDashboard();
   toast('Request rejected');
 }
+
 function setReqFilter(f) {
-  S.reqFilter=f;
+  S.reqFilter = f;
   document.querySelectorAll('#reqFilterBtns .filter-btn').forEach(b=>b.classList.toggle('active-filter',b.dataset.f===f));
   renderRequests();
 }
+
 function renderRequests() {
-  const tb=document.getElementById('requestsTbody');
-  const kw=search('search-requests');
-  let list=S.requests;
-  if (S.reqFilter!=='all') list=list.filter(r=>r.status===S.reqFilter);
-  if (kw) list=list.filter(r=>r.item.toLowerCase().includes(kw)||r.supplier.toLowerCase().includes(kw)||r.ref.toLowerCase().includes(kw));
-  if (!list.length){tb.innerHTML=`<tr><td colspan="8" class="empty-row">No requests found</td></tr>`;return;}
-  const B={pending:'badge-orange',approved:'badge-green',rejected:'badge-red'};
-  tb.innerHTML=list.map(r=>`<tr class="border-t border-gray-100 dark:border-gray-800 dr">
+  const tb = document.getElementById('requestsTbody');
+  const kw = search('search-requests');
+  let list = S.requests;
+  if (S.reqFilter!=='all') list = list.filter(r=>r.status===S.reqFilter);
+  if (kw) list = list.filter(r=>r.item.toLowerCase().includes(kw)||(r.supplier||'').toLowerCase().includes(kw)||(r.ref||'').toLowerCase().includes(kw));
+  if (!list.length) { tb.innerHTML=`<tr><td colspan="8" class="empty-row">No requests found</td></tr>`; return; }
+  const B = {pending:'badge-orange',approved:'badge-green',rejected:'badge-red'};
+  tb.innerHTML = list.map(r=>`<tr class="border-t border-gray-100 dark:border-gray-800 dr">
     <td class="td font-mono text-xs font-bold text-blue-700 dark:text-blue-400">${r.ref}</td>
     <td class="td font-semibold text-gray-900 dark:text-white">${r.item}</td>
     <td class="td text-gray-600 dark:text-gray-400">${r.qty} ${r.unit}</td>
     <td class="td text-gray-600 dark:text-gray-400">${r.supplier}</td>
     <td class="td font-semibold text-gray-900 dark:text-gray-200">SAR ${fmt(r.total)}</td>
-    <td class="td text-gray-400 dark:text-gray-500 text-xs">${new Date(r.at).toLocaleDateString()}</td>
+    <td class="td text-gray-400 dark:text-gray-500 text-xs">${new Date(r.submitted_at).toLocaleDateString()}</td>
     <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${B[r.status]}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td>
     <td class="td">${r.status==='pending'?`<button onclick="approveRequest(${r.id})" class="text-xs font-semibold text-green-700 dark:text-green-400 hover:text-green-900 mr-2">Approve</button><button onclick="rejectRequest(${r.id})" class="text-xs text-red-500 dark:text-red-400 hover:text-red-700">Reject</button>`:'—'}</td>
   </tr>`).join('');
@@ -752,34 +820,38 @@ function renderRequests() {
 const PO_STATUS = { issued:'badge-blue', received:'badge-green', partial:'badge-orange', paid:'badge-purple', cancelled:'badge-red' };
 const PO_LABELS = { issued:'Issued', received:'Received', partial:'Partial', paid:'Paid', cancelled:'Cancelled' };
 
-function updatePOStatus(id, status) {
-  const po=S.pos.find(p=>p.id===id); if (!po) return;
-  po.deliveryStatus=status;
-  persist(); renderPOs(); updateDashboard();
+async function updatePOStatus(id, status) {
+  const { error } = await sb.from('purchase_orders').update({ delivery_status: status }).eq('id', id);
+  if (error) { toast('Error updating status', true); return; }
+  const po = S.pos.find(p=>p.id===id);
+  if (po) po.delivery_status = status;
+  renderPOs(); updateDashboard();
   toast(`PO status → ${PO_LABELS[status]}`);
 }
+
 function setPOFilter(f) {
-  S.poFilter=f;
+  S.poFilter = f;
   document.querySelectorAll('#posFilterBtns .filter-btn').forEach(b=>b.classList.toggle('active-filter',b.dataset.f===f));
   renderPOs();
 }
+
 function renderPOs() {
-  const tb=document.getElementById('posTbody');
-  const kw=search('search-pos');
-  let list=[...S.pos].reverse();
-  if (S.poFilter!=='all') list=list.filter(p=>p.deliveryStatus===S.poFilter);
-  if (kw) list=list.filter(p=>p.poNumber.toLowerCase().includes(kw)||p.item.toLowerCase().includes(kw)||p.supplier.toLowerCase().includes(kw));
-  if (!list.length){tb.innerHTML=`<tr><td colspan="8" class="empty-row">No POs found</td></tr>`;return;}
-  tb.innerHTML=list.map(po=>`<tr class="border-t border-gray-100 dark:border-gray-800 dr">
-    <td class="td font-mono text-xs font-extrabold text-blue-700 dark:text-blue-400">${po.poNumber}</td>
+  const tb = document.getElementById('posTbody');
+  const kw = search('search-pos');
+  let list = [...S.pos].reverse();
+  if (S.poFilter!=='all') list = list.filter(p=>p.delivery_status===S.poFilter);
+  if (kw) list = list.filter(p=>(p.po_number||'').toLowerCase().includes(kw)||p.item.toLowerCase().includes(kw)||(p.supplier||'').toLowerCase().includes(kw));
+  if (!list.length) { tb.innerHTML=`<tr><td colspan="8" class="empty-row">No POs found</td></tr>`; return; }
+  tb.innerHTML = list.map(po=>`<tr class="border-t border-gray-100 dark:border-gray-800 dr">
+    <td class="td font-mono text-xs font-extrabold text-blue-700 dark:text-blue-400">${po.po_number}</td>
     <td class="td font-semibold text-gray-900 dark:text-white">${po.item}</td>
     <td class="td text-gray-600 dark:text-gray-400">${po.supplier}</td>
     <td class="td text-gray-600 dark:text-gray-400">${po.qty} ${po.unit}</td>
     <td class="td font-semibold text-gray-900 dark:text-gray-200">SAR ${fmt(po.total)}</td>
-    <td class="td text-gray-400 dark:text-gray-500 text-xs">${new Date(po.issuedAt).toLocaleDateString()}</td>
+    <td class="td text-gray-400 dark:text-gray-500 text-xs">${new Date(po.issued_at).toLocaleDateString()}</td>
     <td class="td">
       <select onchange="updatePOStatus(${po.id},this.value)" class="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none">
-        ${['issued','partial','received','paid','cancelled'].map(s=>`<option value="${s}" ${po.deliveryStatus===s?'selected':''}>${PO_LABELS[s]}</option>`).join('')}
+        ${['issued','partial','received','paid','cancelled'].map(s=>`<option value="${s}" ${po.delivery_status===s?'selected':''}>${PO_LABELS[s]}</option>`).join('')}
       </select>
     </td>
     <td class="td"><button onclick="openPO(${po.id})" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">View / PDF</button></td>
@@ -787,16 +859,16 @@ function renderPOs() {
 }
 
 function openPO(id) {
-  const po=S.pos.find(p=>p.id===id); if (!po) return;
-  S.activePO=po;
-  const sup=S.suppliers.find(s=>s.name===po.supplier)||{};
-  const issued=new Date(po.issuedAt).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-  const delivery=po.delivery?new Date(po.delivery+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):null;
+  const po = S.pos.find(p=>p.id===id); if (!po) return;
+  S.activePO = po;
+  const sup = S.suppliers.find(s=>s.name===po.supplier)||{};
+  const issued   = new Date(po.issued_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const delivery = po.delivery ? new Date(po.delivery+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : null;
   document.getElementById('poContent').innerHTML=`
     <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.5;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #1d4ed8;">
         <div><h1 style="font-size:26px;font-weight:900;color:#0f2240;margin:0;">PHSN</h1><p style="font-size:11px;color:#6b7280;margin:3px 0 0;">Procurement &amp; Inventory System</p></div>
-        <div style="text-align:right;"><h2 style="font-size:14px;font-weight:700;color:#1d4ed8;margin:0;text-transform:uppercase;letter-spacing:1px;">Purchase Order</h2><p style="font-size:20px;font-weight:900;color:#0f2240;margin:3px 0 0;">${po.poNumber}</p></div>
+        <div style="text-align:right;"><h2 style="font-size:14px;font-weight:700;color:#1d4ed8;margin:0;text-transform:uppercase;letter-spacing:1px;">Purchase Order</h2><p style="font-size:20px;font-weight:900;color:#0f2240;margin:3px 0 0;">${po.po_number}</p></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
         <div style="background:#f8fafc;padding:12px 16px;border-radius:10px;">
@@ -808,7 +880,7 @@ function openPO(id) {
         <div style="background:#f8fafc;padding:12px 16px;border-radius:10px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:11px;color:#6b7280;">Issue Date</span><span style="font-size:11px;font-weight:700;">${issued}</span></div>
           ${delivery?`<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:11px;color:#6b7280;">Required By</span><span style="font-size:11px;font-weight:700;">${delivery}</span></div>`:''}
-          <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:#6b7280;">Issued By</span><span style="font-size:11px;font-weight:700;">${po.issuedBy}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:#6b7280;">Issued By</span><span style="font-size:11px;font-weight:700;">${po.issued_by}</span></div>
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
@@ -825,7 +897,7 @@ function openPO(id) {
           <td style="padding:11px 12px;font-size:13px;font-weight:600;">${po.item}</td>
           <td style="padding:11px 12px;font-size:12px;text-align:center;">${po.unit}</td>
           <td style="padding:11px 12px;font-size:13px;font-weight:700;text-align:center;">${po.qty}</td>
-          <td style="padding:11px 12px;font-size:12px;text-align:right;">SAR ${fmt(po.unitPrice)}</td>
+          <td style="padding:11px 12px;font-size:12px;text-align:right;">SAR ${fmt(po.unit_price)}</td>
           <td style="padding:11px 12px;font-size:13px;font-weight:700;text-align:right;">SAR ${fmt(po.total)}</td>
         </tr></tbody>
         <tfoot><tr style="background:#f8fafc;">
@@ -835,67 +907,80 @@ function openPO(id) {
       </table>
       ${po.notes?`<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:9px 12px;border-radius:0 8px 8px 0;margin-bottom:16px;"><p style="font-size:11px;font-weight:700;color:#92400e;margin:0 0 3px;">Notes</p><p style="font-size:12px;color:#78350f;margin:0;">${po.notes}</p></div>`:''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:40px;padding-top:16px;border-top:1px solid #e5e7eb;">
-        <div style="text-align:center;"><div style="border-top:1.5px solid #9ca3af;padding-top:7px;margin-top:32px;"><p style="font-size:10px;color:#6b7280;margin:0;">Authorized Signature</p><p style="font-size:12px;font-weight:700;margin:3px 0 0;">${po.issuedBy}</p></div></div>
+        <div style="text-align:center;"><div style="border-top:1.5px solid #9ca3af;padding-top:7px;margin-top:32px;"><p style="font-size:10px;color:#6b7280;margin:0;">Authorized Signature</p><p style="font-size:12px;font-weight:700;margin:3px 0 0;">${po.issued_by}</p></div></div>
         <div style="text-align:center;"><div style="border-top:1.5px solid #9ca3af;padding-top:7px;margin-top:32px;"><p style="font-size:10px;color:#6b7280;margin:0;">Supplier Acknowledgment</p><p style="font-size:12px;font-weight:700;margin:3px 0 0;">${po.supplier}</p></div></div>
       </div>
       <p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:20px;">Generated by PHSN — ${new Date().toLocaleDateString()}</p>
     </div>`;
   document.getElementById('poModal').classList.remove('hidden');
 }
+
 function closeModal() { document.getElementById('poModal').classList.add('hidden'); }
+
 function exportPDF() {
   if (!S.activePO) return;
-  html2pdf().set({margin:[10,10,10,10],filename:`${S.activePO.poNumber}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(document.getElementById('poContent')).save().then(()=>toast('PDF exported'));
+  html2pdf().set({margin:[10,10,10,10],filename:`${S.activePO.po_number}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}})
+    .from(document.getElementById('poContent')).save().then(()=>toast('PDF exported'));
 }
 
 // ==================== INVENTORY ====================
-function saveInventory() {
-  const item=q('i-item'), qty=parseFloat(document.getElementById('i-qty').value);
-  if (!item||!qty) { toast('Item and quantity required',true); return; }
-  S.inventory.push({id:Date.now(),type:document.getElementById('i-type').value,item,qty,ref:q('i-ref'),date:document.getElementById('i-date').value||today(),notes:q('i-notes'),by:S.user});
+async function saveInventory() {
+  const item = q('i-item'), qty = parseFloat(document.getElementById('i-qty').value);
+  if (!item||!qty) { toast('Item and quantity required', true); return; }
+  const { data, error } = await sb.from('inventory').insert({
+    type:      document.getElementById('i-type').value,
+    item, qty,
+    ref:       q('i-ref'),
+    date:      document.getElementById('i-date').value || today(),
+    notes:     q('i-notes'),
+    logged_by: S.user
+  }).select().single();
+  if (error) { toast('Error saving movement: ' + error.message, true); return; }
+  S.inventory.push(data);
   ['i-item','i-qty','i-ref','i-notes'].forEach(id=>document.getElementById(id).value='');
   toggleForm('addInventoryForm');
-  persist(); renderInventory(); renderProducts(); updateDashboard();
+  renderInventory(); renderProducts(); updateDashboard();
   toast('Stock movement recorded');
 }
+
 function setInvFilter(f) {
-  S.invFilter=f;
+  S.invFilter = f;
   document.querySelectorAll('#view-inventory .filter-btn').forEach(b=>b.classList.toggle('active-filter',b.dataset.f===f));
   renderInventory();
 }
+
 function renderInventory() {
-  const tb=document.getElementById('inventoryTbody');
-  const kw=search('search-inventory');
-  let list=S.inventory;
-  if (S.invFilter!=='all') list=list.filter(m=>m.type===S.invFilter);
-  if (kw) list=list.filter(m=>m.item.toLowerCase().includes(kw)||(m.ref||'').toLowerCase().includes(kw));
-  if (!list.length){tb.innerHTML=`<tr><td colspan="7" class="empty-row">No movements found</td></tr>`;return;}
-  tb.innerHTML=[...list].reverse().map(m=>`<tr class="border-t border-gray-100 dark:border-gray-800 dr">
+  const tb = document.getElementById('inventoryTbody');
+  const kw = search('search-inventory');
+  let list = S.inventory;
+  if (S.invFilter!=='all') list = list.filter(m=>m.type===S.invFilter);
+  if (kw) list = list.filter(m=>m.item.toLowerCase().includes(kw)||(m.ref||'').toLowerCase().includes(kw));
+  if (!list.length) { tb.innerHTML=`<tr><td colspan="7" class="empty-row">No movements found</td></tr>`; return; }
+  tb.innerHTML = [...list].reverse().map(m=>`<tr class="border-t border-gray-100 dark:border-gray-800 dr">
     <td class="td text-gray-400 dark:text-gray-500 text-xs">${m.date}</td>
     <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${m.type==='in'?'badge-green':'badge-red'}">${m.type==='in'?'Stock In':'Stock Out'}</span></td>
     <td class="td font-semibold text-gray-900 dark:text-white">${m.item}</td>
     <td class="td font-bold text-base ${m.type==='in'?'text-green-600 dark:text-green-400':'text-red-600 dark:text-red-400'}">${m.type==='in'?'+':'-'}${m.qty}</td>
     <td class="td font-mono text-xs text-gray-400 dark:text-gray-500">${m.ref||'—'}</td>
-    <td class="td text-gray-500 dark:text-gray-400 text-xs">${m.by}</td>
+    <td class="td text-gray-500 dark:text-gray-400 text-xs">${m.logged_by||'—'}</td>
     <td class="td text-gray-400 dark:text-gray-500 text-xs">${m.notes||'—'}</td>
   </tr>`).join('');
 }
 
 // ==================== REPORTS ====================
 function renderReports() {
-  const totalSpend = S.pos.reduce((s,p)=>s+p.total,0);
-  const avgPO = S.pos.length ? totalSpend/S.pos.length : 0;
-  const approved = S.requests.filter(r=>r.status==='approved').length;
-  const total = S.requests.length;
-  document.getElementById('rep-total-spend').textContent = `SAR ${fmt(totalSpend)}`;
-  document.getElementById('rep-avg-po').textContent      = `SAR ${fmt(avgPO)}`;
-  document.getElementById('rep-approval-rate').textContent = total ? Math.round(approved/total*100)+'%' : '0%';
+  const totalSpend = S.pos.reduce((s,p)=>s+Number(p.total),0);
+  const avgPO      = S.pos.length ? totalSpend/S.pos.length : 0;
+  const approved   = S.requests.filter(r=>r.status==='approved').length;
+  const total      = S.requests.length;
+  document.getElementById('rep-total-spend').textContent    = `SAR ${fmt(totalSpend)}`;
+  document.getElementById('rep-avg-po').textContent         = `SAR ${fmt(avgPO)}`;
+  document.getElementById('rep-approval-rate').textContent  = total ? Math.round(approved/total*100)+'%' : '0%';
 
-  // Top suppliers
   const bySupplier = {};
-  S.pos.forEach(p=>{ bySupplier[p.supplier]=(bySupplier[p.supplier]||0)+p.total; });
+  S.pos.forEach(p=>{ bySupplier[p.supplier]=(bySupplier[p.supplier]||0)+Number(p.total); });
   const supList = Object.entries(bySupplier).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const maxSup = supList[0]?.[1]||1;
+  const maxSup  = supList[0]?.[1]||1;
   document.getElementById('rep-suppliers').innerHTML = supList.length
     ? supList.map(([name,amt])=>`<div>
         <div class="flex justify-between text-xs mb-1"><span class="font-medium text-gray-800 dark:text-gray-200 truncate max-w-[140px]">${name}</span><span class="text-gray-500 dark:text-gray-400 font-mono">SAR ${fmt(amt)}</span></div>
@@ -903,11 +988,10 @@ function renderReports() {
       </div>`).join('')
     : '<p class="text-xs text-gray-400 text-center py-3">No data yet</p>';
 
-  // Top items
-  const byItem = {};
-  S.pos.forEach(p=>{ byItem[p.item]=(byItem[p.item]||0)+p.total; });
+  const byItem  = {};
+  S.pos.forEach(p=>{ byItem[p.item]=(byItem[p.item]||0)+Number(p.total); });
   const itemList = Object.entries(byItem).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const maxItem = itemList[0]?.[1]||1;
+  const maxItem  = itemList[0]?.[1]||1;
   document.getElementById('rep-items').innerHTML = itemList.length
     ? itemList.map(([name,amt])=>`<div>
         <div class="flex justify-between text-xs mb-1"><span class="font-medium text-gray-800 dark:text-gray-200 truncate max-w-[140px]">${name}</span><span class="text-gray-500 dark:text-gray-400 font-mono">SAR ${fmt(amt)}</span></div>
@@ -915,9 +999,8 @@ function renderReports() {
       </div>`).join('')
     : '<p class="text-xs text-gray-400 text-center py-3">No data yet</p>';
 
-  // PO status breakdown
   const statusCount = {issued:0,partial:0,received:0,paid:0,cancelled:0};
-  S.pos.forEach(p=>{ statusCount[p.deliveryStatus||'issued']++; });
+  S.pos.forEach(p=>{ statusCount[p.delivery_status||'issued']++; });
   const statusColors = {issued:'badge-blue',partial:'badge-orange',received:'badge-green',paid:'badge-purple',cancelled:'badge-red'};
   document.getElementById('rep-po-status').innerHTML = S.pos.length
     ? Object.entries(statusCount).filter(([,c])=>c>0).map(([s,c])=>`<div class="flex items-center justify-between py-1">
@@ -926,55 +1009,51 @@ function renderReports() {
       </div>`).join('')
     : '<p class="text-xs text-gray-400 text-center py-3">No data yet</p>';
 
-  // Low stock
-  const lowStock = S.products.filter(p=>getStock(p.name)<=p.minStock);
+  const lowStock = S.products.filter(p=>getStock(p.name)<=p.min_stock);
   document.getElementById('rep-low-stock').innerHTML = lowStock.length
     ? lowStock.map(p=>`<div class="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-800 last:border-0">
         <span class="text-xs font-medium text-gray-800 dark:text-gray-200">${p.name}</span>
-        <span class="text-xs font-bold text-red-600 dark:text-red-400">Stock: ${getStock(p.name)} / Min: ${p.minStock}</span>
+        <span class="text-xs font-bold text-red-600 dark:text-red-400">Stock: ${getStock(p.name)} / Min: ${p.min_stock}</span>
       </div>`).join('')
     : '<p class="text-xs text-gray-400 text-center py-3">All items sufficiently stocked</p>';
 }
 
 // ==================== DASHBOARD ====================
 function updateDashboard() {
-  document.getElementById('stat-pos').textContent      = S.pos.length;
-  document.getElementById('stat-pending').textContent  = S.requests.filter(r=>r.status==='pending').length;
-  document.getElementById('stat-spend').textContent    = 'SAR '+fmt(S.pos.reduce((s,p)=>s+p.total,0));
-  document.getElementById('stat-suppliers').textContent= S.suppliers.filter(s=>s.status==='active').length;
+  document.getElementById('stat-pos').textContent       = S.pos.length;
+  document.getElementById('stat-pending').textContent   = S.requests.filter(r=>r.status==='pending').length;
+  document.getElementById('stat-spend').textContent     = 'SAR '+fmt(S.pos.reduce((s,p)=>s+Number(p.total),0));
+  document.getElementById('stat-suppliers').textContent = S.suppliers.filter(s=>s.status==='active').length;
   const pending = S.requests.filter(r=>r.status==='pending').length;
   const badge = document.getElementById('pendingBadge');
-  badge.textContent=pending; badge.classList.toggle('hidden',pending===0);
+  badge.textContent = pending; badge.classList.toggle('hidden', pending===0);
 
-  // Recent POs
-  const rp=document.getElementById('dash-recent-pos');
-  const latestPOs=[...S.pos].reverse().slice(0,4);
-  rp.innerHTML=latestPOs.length
-    ?latestPOs.map(po=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0">
-        <div><span class="text-xs font-bold text-blue-700 dark:text-blue-400">${po.poNumber}</span> <span class="text-xs text-gray-500 dark:text-gray-400">${po.item}</span></div>
+  const rp = document.getElementById('dash-recent-pos');
+  const latestPOs = [...S.pos].reverse().slice(0,4);
+  rp.innerHTML = latestPOs.length
+    ? latestPOs.map(po=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0">
+        <div><span class="text-xs font-bold text-blue-700 dark:text-blue-400">${po.po_number}</span> <span class="text-xs text-gray-500 dark:text-gray-400">${po.item}</span></div>
         <span class="text-xs font-semibold text-gray-800 dark:text-gray-200">SAR ${fmt(po.total)}</span>
       </div>`).join('')
-    :'<p class="text-xs text-gray-400 text-center py-3">No POs yet</p>';
+    : '<p class="text-xs text-gray-400 text-center py-3">No POs yet</p>';
 
-  // Pending approvals
-  const dp=document.getElementById('dash-pending');
-  const pend=S.requests.filter(r=>r.status==='pending').slice(0,4);
-  dp.innerHTML=pend.length
-    ?pend.map(r=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0">
+  const dp = document.getElementById('dash-pending');
+  const pend = S.requests.filter(r=>r.status==='pending').slice(0,4);
+  dp.innerHTML = pend.length
+    ? pend.map(r=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0">
         <div><span class="text-xs font-bold text-orange-500">${r.ref}</span> <span class="text-xs text-gray-500 dark:text-gray-400">${r.item}</span></div>
         <span class="text-xs font-semibold text-gray-800 dark:text-gray-200">SAR ${fmt(r.total)}</span>
       </div>`).join('')
-    :'<p class="text-xs text-gray-400 text-center py-3">All clear</p>';
+    : '<p class="text-xs text-gray-400 text-center py-3">All clear</p>';
 
-  // Low stock alerts
-  const ls=document.getElementById('dash-low-stock');
-  const low=S.products.filter(p=>getStock(p.name)<=p.minStock).slice(0,4);
-  ls.innerHTML=low.length
-    ?low.map(p=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0">
+  const ls = document.getElementById('dash-low-stock');
+  const low = S.products.filter(p=>getStock(p.name)<=p.min_stock).slice(0,4);
+  ls.innerHTML = low.length
+    ? low.map(p=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0">
         <span class="text-xs font-medium text-gray-700 dark:text-gray-300">${p.name}</span>
         <span class="text-xs font-bold text-red-600 dark:text-red-400">${getStock(p.name)} left</span>
       </div>`).join('')
-    :'<p class="text-xs text-gray-400 text-center py-3">No alerts</p>';
+    : '<p class="text-xs text-gray-400 text-center py-3">No alerts</p>';
 }
 
 document.getElementById('poModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
