@@ -371,29 +371,26 @@
 
       <!-- ===== PURCHASE ORDERS ===== -->
       <div id="view-pos" class="view">
-        <!-- Pending Approvals -->
-        <div id="pendingApprovalsSection" class="mb-5">
-          <div class="flex items-center gap-2 mb-3">
-            <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">Pending Approvals</h3>
-            <span id="pendingApprovalCount" class="bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight hidden">0</span>
-          </div>
-          <div id="pendingApprovalsList" class="space-y-2">
-            <p class="text-xs text-gray-400 py-2">No pending requests</p>
-          </div>
-        </div>
-        <!-- Confirmed POs -->
         <div class="flex justify-between items-center mb-4">
           <div class="flex items-center gap-3">
             <input id="search-pos" oninput="renderPOs()" type="text" placeholder="Search POs…" class="field-input w-48 text-xs">
             <div class="flex gap-1.5" id="posFilterBtns">
               <button onclick="setPOFilter('all')"      data-f="all"      class="filter-btn active-filter">All</button>
+              <button onclick="setPOFilter('pending')"  data-f="pending"  class="filter-btn">Pending Approvals <span id="pendingApprovalCount" class="hidden ml-1 bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-tight">0</span></button>
               <button onclick="setPOFilter('issued')"   data-f="issued"   class="filter-btn">Issued</button>
               <button onclick="setPOFilter('received')" data-f="received" class="filter-btn">Received</button>
               <button onclick="setPOFilter('paid')"     data-f="paid"     class="filter-btn">Paid</button>
             </div>
           </div>
         </div>
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+        <!-- Pending Approvals panel -->
+        <div id="pendingApprovalsSection" class="hidden mb-4">
+          <div id="pendingApprovalsList" class="space-y-2">
+            <p class="text-xs text-gray-400 py-2">No pending requests</p>
+          </div>
+        </div>
+        <!-- Confirmed POs table -->
+        <div id="posTableSection" class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -629,7 +626,7 @@ function showView(v) {
   if (fn[v]) fn[v]();
   if (v === 'dashboard') updateDashboard();
   if (v === 'requests') { populateSupplierDropdown(); populateProductDropdown(); }
-  if (v === 'pos') renderPendingApprovals();
+  if (v === 'pos') { renderPendingApprovals(); renderPOs(); }
 }
 
 // ==================== UTILS ====================
@@ -919,7 +916,10 @@ async function updatePOStatus(id, status) {
 function setPOFilter(f) {
   S.poFilter = f;
   document.querySelectorAll('#posFilterBtns .filter-btn').forEach(b=>b.classList.toggle('active-filter',b.dataset.f===f));
-  renderPOs();
+  const isPending = f === 'pending';
+  document.getElementById('pendingApprovalsSection').classList.toggle('hidden', !isPending);
+  document.getElementById('posTableSection').classList.toggle('hidden', isPending);
+  if (isPending) renderPendingApprovals(); else renderPOs();
 }
 
 function renderPendingApprovals() {
