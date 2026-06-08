@@ -332,6 +332,10 @@
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             Add Item
           </button>
+          <div class="mb-3">
+            <label class="field-label">Project Name</label>
+            <input id="r-project" type="text" placeholder="e.g. Tower A, Office Fit-Out, Kitchen…" class="field-input w-full">
+          </div>
           <div>
             <label class="field-label">Notes / Justification</label>
             <textarea id="r-notes" rows="2" placeholder="Optional notes…" class="field-input resize-none w-full"></textarea>
@@ -346,7 +350,7 @@
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <tr><th class="th">Ref #</th><th class="th">Item</th><th class="th">Qty</th><th class="th">Supplier</th><th class="th">Total (SAR)</th><th class="th">Date</th><th class="th">Status</th><th class="th">Actions</th></tr>
+                <tr><th class="th">Ref #</th><th class="th">Project</th><th class="th">Item</th><th class="th">Qty</th><th class="th">Supplier</th><th class="th">Total (SAR)</th><th class="th">Date</th><th class="th">Status</th><th class="th">Actions</th></tr>
               </thead>
               <tbody id="requestsTbody"><tr><td colspan="8" class="empty-row">No requests yet</td></tr></tbody>
             </table>
@@ -769,6 +773,7 @@ function initPRForm() {
   refreshAllPRDropdowns();
   document.getElementById('prLinesTbody').innerHTML = '';
   prLineCount = 0;
+  document.getElementById('r-project').value = '';
   document.getElementById('r-notes').value = '';
   addPRLine();
 }
@@ -909,6 +914,7 @@ async function saveRequest() {
     total:      0,
     items:      items,
     delivery:   null,
+    project:    q('r-project'),
     notes:      q('r-notes'),
     status:     'pending',
     submitted_by: S.user, submitted_at: new Date().toISOString()
@@ -958,6 +964,7 @@ async function approveRequest(id) {
     unit_price: pricedItems[0].unit_price, total: grandTotal,
     items:      pricedItems,
     delivery: document.getElementById(`adeliv-${id}`)?.value || null, notes: req.notes,
+    project: req.project || '',
     issued_by: S.user, issued_at: approvedAt, delivery_status: 'issued'
   }).select().single();
   if (e2) { toast('Error creating PO', true); return; }
@@ -989,7 +996,7 @@ function renderRequests() {
   let list = S.requests;
   if (S.reqFilter!=='all') list = list.filter(r=>r.status===S.reqFilter);
   if (kw) list = list.filter(r=>r.item.toLowerCase().includes(kw)||(r.supplier||'').toLowerCase().includes(kw)||(r.ref||'').toLowerCase().includes(kw));
-  if (!list.length) { tb.innerHTML=`<tr><td colspan="8" class="empty-row">No requests found</td></tr>`; return; }
+  if (!list.length) { tb.innerHTML=`<tr><td colspan="9" class="empty-row">No requests found</td></tr>`; return; }
   const B = {pending:'badge-orange',approved:'badge-green',rejected:'badge-red'};
   tb.innerHTML = list.map(r=>{
     const its = r.items && r.items.length > 1;
@@ -1002,6 +1009,7 @@ function renderRequests() {
       : (r.supplier||'—');
     return `<tr class="border-t border-gray-100 dark:border-gray-800 dr">
     <td class="td font-mono text-xs font-bold text-blue-700 dark:text-blue-400">${r.ref}</td>
+    <td class="td text-xs font-semibold text-purple-700 dark:text-purple-400">${r.project||'<span class="text-gray-400 font-normal italic">—</span>'}</td>
     <td class="td">${itemCell}</td>
     <td class="td text-gray-600 dark:text-gray-400 text-xs">${qtyCell}</td>
     <td class="td text-gray-600 dark:text-gray-400 text-xs">${supCell}</td>
@@ -1179,6 +1187,7 @@ function renderPendingApprovals() {
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <span class="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">${r.ref}</span>
+          ${r.project?`<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">${r.project}</span>`:''}
           <span class="text-xs text-gray-400">${new Date(r.submitted_at).toLocaleDateString()}</span>
           ${its.length>1?`<span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${its.length} items</span>`:''}
           ${r.notes?`<span class="text-xs text-gray-400 italic">· ${r.notes}</span>`:''}
@@ -1269,6 +1278,7 @@ function openPO(id) {
         <div>
           <p style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.6px;margin:0 0 5px;">Bill To</p>
           <p style="font-size:15px;font-weight:800;color:#111;margin:0 0 2px;">${po.supplier}</p>
+          ${po.project?`<p style="font-size:11px;color:#7c3aed;font-weight:600;margin:4px 0 0;">Project: ${po.project}</p>`:''}
           ${sup.contact?`<p style="font-size:11px;color:#6b7280;margin:1px 0;">${sup.contact}${sup.phone?' · '+sup.phone:''}</p>`:''}
           ${sup.email?`<p style="font-size:11px;color:#6b7280;margin:1px 0;">${sup.email}</p>`:''}
         </div>
