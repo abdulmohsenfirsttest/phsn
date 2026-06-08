@@ -311,13 +311,39 @@
         <div id="addRequestForm" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 mb-4">
           <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">New Purchase Request (PR)</h3>
           <div class="grid grid-cols-3 gap-4">
-            <div><label class="field-label">Item / Product *</label>    <input id="r-item"     type="text"   placeholder="e.g. Cement Bags 50kg"  class="field-input"></div>
+            <div>
+              <label class="field-label">Item / Product *</label>
+              <div class="flex gap-1.5">
+                <select id="r-item" onchange="onProductSelect()" class="field-input flex-1"><option value="">— Select product —</option></select>
+                <button type="button" onclick="toggleQuickAdd('qa-product')" title="Add new product" style="padding:7px 10px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;flex-shrink:0;">+</button>
+              </div>
+              <div id="qa-product" class="hidden mt-2 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
+                <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Product</p>
+                <div class="flex gap-2">
+                  <input id="qa-p-name" type="text" placeholder="Product name" class="field-input flex-1" style="font-size:12px;">
+                  <button onclick="quickSaveProduct()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
+                  <button onclick="toggleQuickAdd('qa-product')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
+                </div>
+              </div>
+            </div>
             <div><label class="field-label">Quantity *</label>           <input id="r-qty"      type="number" placeholder="0" min="1"              class="field-input"></div>
             <div><label class="field-label">Unit</label>
               <select id="r-unit" class="field-input"><option>Bag</option><option>Kg</option><option>Ton</option><option>Unit</option><option>Box</option><option>Liter</option><option>Meter</option></select>
             </div>
-            <div><label class="field-label">Supplier *</label>
-              <select id="r-supplier" class="field-input"><option value="">— Select supplier —</option></select>
+            <div>
+              <label class="field-label">Supplier *</label>
+              <div class="flex gap-1.5">
+                <select id="r-supplier" class="field-input flex-1"><option value="">— Select supplier —</option></select>
+                <button type="button" onclick="toggleQuickAdd('qa-supplier')" title="Add new supplier" style="padding:7px 10px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;flex-shrink:0;">+</button>
+              </div>
+              <div id="qa-supplier" class="hidden mt-2 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
+                <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Supplier</p>
+                <div class="flex gap-2">
+                  <input id="qa-s-name" type="text" placeholder="Company name" class="field-input flex-1" style="font-size:12px;">
+                  <button onclick="quickSaveSupplier()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
+                  <button onclick="toggleQuickAdd('qa-supplier')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
+                </div>
+              </div>
             </div>
             <div><label class="field-label">Unit Price (SAR) *</label>   <input id="r-price"    type="number" placeholder="0.00" step="0.01"        class="field-input"></div>
             <div><label class="field-label">Required Delivery By</label> <input id="r-delivery" type="date"                                         class="field-input"></div>
@@ -591,7 +617,7 @@ function showView(v) {
   const fn = {suppliers:renderSuppliers,products:renderProducts,requests:renderRequests,pos:renderPOs,inventory:renderInventory,reports:renderReports};
   if (fn[v]) fn[v]();
   if (v === 'dashboard') updateDashboard();
-  if (v === 'requests') populateSupplierDropdown();
+  if (v === 'requests') { populateSupplierDropdown(); populateProductDropdown(); }
 }
 
 // ==================== UTILS ====================
@@ -599,7 +625,7 @@ function toggleForm(id) {
   const el = document.getElementById(id);
   el.classList.toggle('hidden');
   if (!el.classList.contains('hidden')) {
-    if (id === 'addRequestForm')   { document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000); populateSupplierDropdown(); }
+    if (id === 'addRequestForm')   { document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000); populateSupplierDropdown(); populateProductDropdown(); }
     if (id === 'addInventoryForm') document.getElementById('i-date').valueAsDate = new Date();
   }
 }
@@ -679,6 +705,55 @@ function populateSupplierDropdown() {
   sel.innerHTML = '<option value="">— Select supplier —</option>' +
     S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
   sel.value = cur;
+}
+
+function populateProductDropdown() {
+  const sel = document.getElementById('r-item');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Select product —</option>' +
+    S.products.map(p=>`<option value="${p.name}" data-unit="${p.unit||''}" data-price="${p.price||''}">${p.name}</option>`).join('');
+  sel.value = cur;
+}
+
+function onProductSelect() {
+  const sel = document.getElementById('r-item');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) return;
+  if (opt.dataset.unit) document.getElementById('r-unit').value = opt.dataset.unit;
+  if (opt.dataset.price && opt.dataset.price !== '0') document.getElementById('r-price').value = opt.dataset.price;
+}
+
+function toggleQuickAdd(id) {
+  document.getElementById(id).classList.toggle('hidden');
+}
+
+async function quickSaveSupplier() {
+  const name = document.getElementById('qa-s-name').value.trim();
+  if (!name) { toast('Company name is required', true); return; }
+  const code = `SUP-${String(S.suppliers.length + 1).padStart(3,'0')}`;
+  const { data, error } = await sb.from('suppliers').insert({ code, name, status:'active' }).select().single();
+  if (error) { toast('Error: ' + error.message, true); return; }
+  S.suppliers.push(data);
+  document.getElementById('qa-s-name').value = '';
+  document.getElementById('qa-supplier').classList.add('hidden');
+  populateSupplierDropdown();
+  document.getElementById('r-supplier').value = name;
+  toast('Supplier added');
+}
+
+async function quickSaveProduct() {
+  const name = document.getElementById('qa-p-name').value.trim();
+  if (!name) { toast('Product name is required', true); return; }
+  const sku = `SKU-${String(S.products.length + 1).padStart(3,'0')}`;
+  const { data, error } = await sb.from('products').insert({ name, sku, category:'General', unit:'Unit', price:0, min_stock:0 }).select().single();
+  if (error) { toast('Error: ' + error.message, true); return; }
+  S.products.push(data);
+  document.getElementById('qa-p-name').value = '';
+  document.getElementById('qa-product').classList.add('hidden');
+  populateProductDropdown();
+  document.getElementById('r-item').value = name;
+  toast('Product added');
 }
 
 // ==================== PRODUCTS ====================
