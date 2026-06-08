@@ -770,7 +770,6 @@ function refreshAllPRDropdowns() {
 function initPRForm() {
   document.getElementById('prLinesTbody').innerHTML = '';
   prLineCount = 0;
-  document.getElementById('prGrandTotal').textContent = 'SAR 0.00';
   document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000);
   document.getElementById('r-notes').value = '';
   addPRLine();
@@ -819,7 +818,7 @@ function calcPRGrandTotal() {
     const price = parseFloat(tr.querySelector('.pr-price-inp').value) || 0;
     grand += qty * price;
   });
-  document.getElementById('prGrandTotal').textContent = `SAR ${fmt(grand)}`;
+  const gtEl = document.getElementById('prGrandTotal'); if (gtEl) gtEl.textContent = `SAR ${fmt(grand)}`;
 }
 
 function onPRProductSelect(n, sel) {
