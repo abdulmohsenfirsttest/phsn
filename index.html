@@ -327,27 +327,20 @@
               <button onclick="toggleQuickAdd('qa-supplier')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
             </div>
           </div>
-          <!-- Line items table -->
-          <div class="overflow-x-auto mb-3 rounded-lg border border-gray-100 dark:border-gray-800">
-            <table class="w-full" style="font-size:12px;">
-              <thead class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <tr>
-                  <th class="th">Product <button onclick="toggleQuickAdd('qa-product')" title="Add new product" style="margin-left:4px;padding:1px 5px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></th>
-                  <th class="th" style="width:70px;">Qty</th>
-                  <th class="th" style="width:72px;">Unit</th>
-                  <th class="th">Supplier <button onclick="toggleQuickAdd('qa-supplier')" title="Add new supplier" style="margin-left:4px;padding:1px 5px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></th>
-                  <th class="th" style="width:28px;"></th>
-                </tr>
-              </thead>
-              <tbody id="prLinesTbody"></tbody>
-            </table>
+          <!-- Items label row -->
+          <div class="grid gap-3 mb-1" style="grid-template-columns:1fr 90px 90px 1fr 28px;">
+            <span class="field-label">Product <button onclick="toggleQuickAdd('qa-product')" title="Add new product" style="margin-left:4px;padding:1px 6px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></span>
+            <span class="field-label">Qty</span>
+            <span class="field-label">Unit</span>
+            <span class="field-label">Supplier <button onclick="toggleQuickAdd('qa-supplier')" title="Add new supplier" style="margin-left:4px;padding:1px 6px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></span>
+            <span></span>
           </div>
-          <div class="flex items-center mb-4">
-            <button onclick="addPRLine()" class="btn-secondary" style="font-size:11px;padding:5px 12px;gap:4px;">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-              Add Item
-            </button>
-          </div>
+          <!-- Item rows -->
+          <div id="prLinesTbody" class="space-y-2 mb-3"></div>
+          <button onclick="addPRLine()" class="btn-secondary mb-4" style="font-size:11px;padding:5px 12px;gap:4px;">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Add Item
+          </button>
           <div class="grid grid-cols-2 gap-4">
             <div><label class="field-label">Required Delivery By</label><input id="r-delivery" type="date" class="field-input"></div>
             <div><label class="field-label">Notes / Justification</label><textarea id="r-notes" rows="2" placeholder="Optional notes…" class="field-input resize-none"></textarea></div>
@@ -770,7 +763,7 @@ function refreshAllPRDropdowns() {
     S.products.map(p=>`<option value="${p.name}" data-unit="${p.unit||''}" data-price="${p.price||''}">${p.name}</option>`).join('');
   const supplierOpts = '<option value="">— Select —</option>' +
     S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
-  document.querySelectorAll('#prLinesTbody .pr-item-sel').forEach(sel => { const v=sel.value; sel.innerHTML=productOpts; sel.value=v; });
+  document.querySelectorAll('#prLinesTbody .pr-item-sel').forEach(sel => { const v=sel.value; sel.innerHTML=productOpts;  sel.value=v; });
   document.querySelectorAll('#prLinesTbody .pr-sup-sel').forEach(sel  => { const v=sel.value; sel.innerHTML=supplierOpts; sel.value=v; });
 }
 
@@ -791,33 +784,23 @@ function addPRLine() {
   const supplierOpts = '<option value="">— Select —</option>' +
     S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
   const unitOpts = ['Unit','Bag','Kg','Ton','Box','Liter','Meter'].map(u=>`<option>${u}</option>`).join('');
-  const tr = document.createElement('tr');
-  tr.dataset.line = n;
-  tr.className = 'border-t border-gray-100 dark:border-gray-700';
-  tr.innerHTML = `
-    <td class="td" style="padding:4px 6px;">
-      <select class="pr-item-sel field-input" style="font-size:11px;min-width:140px;padding:4px 6px;" onchange="onPRProductSelect(${n},this)">${productOpts}</select>
-    </td>
-    <td class="td" style="padding:4px 6px;">
-      <input class="pr-qty-inp field-input" type="number" min="0.01" step="any" placeholder="0" style="font-size:11px;width:64px;padding:4px 6px;">
-    </td>
-    <td class="td" style="padding:4px 6px;">
-      <select class="pr-unit-sel field-input" style="font-size:11px;width:70px;padding:4px 6px;">${unitOpts}</select>
-    </td>
-    <td class="td" style="padding:4px 6px;">
-      <select class="pr-sup-sel field-input" style="font-size:11px;min-width:130px;padding:4px 6px;">${supplierOpts}</select>
-    </td>
-    <td class="td" style="padding:4px 4px;">
-      <button onclick="removePRLine(this)" style="color:#ef4444;font-size:15px;font-weight:700;background:none;border:none;cursor:pointer;line-height:1;padding:2px 4px;" title="Remove">×</button>
-    </td>`;
-  document.getElementById('prLinesTbody').appendChild(tr);
+  const row = document.createElement('div');
+  row.dataset.line = n;
+  row.className = 'grid gap-3 items-center';
+  row.style.gridTemplateColumns = '1fr 90px 90px 1fr 28px';
+  row.innerHTML = `
+    <select class="pr-item-sel field-input" onchange="onPRProductSelect(${n},this)">${productOpts}</select>
+    <input  class="pr-qty-inp  field-input" type="number" min="0.01" step="any" placeholder="Qty">
+    <select class="pr-unit-sel field-input">${unitOpts}</select>
+    <select class="pr-sup-sel  field-input">${supplierOpts}</select>
+    <button onclick="removePRLine(this)" title="Remove" style="color:#ef4444;font-size:16px;font-weight:700;background:none;border:none;cursor:pointer;line-height:1;padding:0;text-align:center;">×</button>`;
+  document.getElementById('prLinesTbody').appendChild(row);
 }
 
 function removePRLine(btn) {
-  const rows = document.querySelectorAll('#prLinesTbody tr');
+  const rows = document.querySelectorAll('#prLinesTbody [data-line]');
   if (rows.length <= 1) { toast('At least one item is required', true); return; }
-  btn.closest('tr').remove();
-  calcPRGrandTotal();
+  btn.closest('[data-line]').remove();
 }
 
 function calcPRLine(n) {
@@ -842,7 +825,7 @@ function calcPRGrandTotal() {
 function onPRProductSelect(n, sel) {
   const opt = sel.options[sel.selectedIndex];
   if (!opt || !opt.value) return;
-  const tr = document.querySelector(`#prLinesTbody tr[data-line="${n}"]`);
+  const tr = document.querySelector(`#prLinesTbody [data-line="${n}"]`);
   if (!tr) return;
   if (opt.dataset.unit) tr.querySelector('.pr-unit-sel').value = opt.dataset.unit;
 }
@@ -908,7 +891,7 @@ function exportProductsCSV() {
 
 // ==================== REQUESTS ====================
 async function saveRequest() {
-  const rows = document.querySelectorAll('#prLinesTbody tr');
+  const rows = document.querySelectorAll('#prLinesTbody [data-line]');
   const items = [];
   rows.forEach(tr => {
     const item     = tr.querySelector('.pr-item-sel').value.trim();
