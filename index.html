@@ -319,20 +319,11 @@
               <button onclick="toggleQuickAdd('qa-product')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
             </div>
           </div>
-          <div id="qa-supplier" class="hidden mb-3 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
-            <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Supplier</p>
-            <div class="flex gap-2">
-              <input id="qa-s-name" type="text" placeholder="Company name" class="field-input flex-1" style="font-size:12px;">
-              <button onclick="quickSaveSupplier()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
-              <button onclick="toggleQuickAdd('qa-supplier')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
-            </div>
-          </div>
           <!-- Items label row -->
-          <div class="grid gap-3 mb-1" style="grid-template-columns:1fr 90px 90px 1fr 28px;">
+          <div class="grid gap-3 mb-1" style="grid-template-columns:1fr 90px 90px 28px;">
             <span class="field-label">Product <button onclick="toggleQuickAdd('qa-product')" title="Add new product" style="margin-left:4px;padding:1px 6px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></span>
             <span class="field-label">Qty</span>
             <span class="field-label">Unit</span>
-            <span class="field-label">Supplier <button onclick="toggleQuickAdd('qa-supplier')" title="Add new supplier" style="margin-left:4px;padding:1px 6px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></span>
             <span></span>
           </div>
           <!-- Item rows -->
@@ -785,12 +776,11 @@ function addPRLine() {
   const row = document.createElement('div');
   row.dataset.line = n;
   row.className = 'grid gap-3 items-center';
-  row.style.gridTemplateColumns = '1fr 90px 90px 1fr 28px';
+  row.style.gridTemplateColumns = '1fr 90px 90px 28px';
   row.innerHTML = `
     <input  class="pr-item-sel field-input" type="text" list="products-list" placeholder="Type or select a product…" oninput="onPRProductSelect(${n},this)" autocomplete="off">
     <input  class="pr-qty-inp  field-input" type="number" min="0.01" step="any" placeholder="Qty">
     <select class="pr-unit-sel field-input">${unitOpts}</select>
-    <input  class="pr-sup-sel  field-input" type="text" list="suppliers-list" placeholder="Type or select…" autocomplete="off">
     <button onclick="removePRLine(this)" title="Remove" style="color:#ef4444;font-size:16px;font-weight:700;background:none;border:none;cursor:pointer;line-height:1;padding:0;text-align:center;">×</button>`;
   document.getElementById('prLinesTbody').appendChild(row);
 }
@@ -893,11 +883,10 @@ async function saveRequest() {
   const rows = document.querySelectorAll('#prLinesTbody [data-line]');
   const items = [];
   rows.forEach(tr => {
-    const item     = tr.querySelector('.pr-item-sel').value.trim();
-    const qty      = parseFloat(tr.querySelector('.pr-qty-inp').value) || 0;
-    const unit     = tr.querySelector('.pr-unit-sel').value;
-    const supplier = tr.querySelector('.pr-sup-sel').value;
-    if (item && qty > 0) items.push({ item, qty, unit, supplier, unit_price: 0, total: 0 });
+    const item = tr.querySelector('.pr-item-sel').value.trim();
+    const qty  = parseFloat(tr.querySelector('.pr-qty-inp').value) || 0;
+    const unit = tr.querySelector('.pr-unit-sel').value;
+    if (item && qty > 0) items.push({ item, qty, unit, supplier: '', unit_price: 0, total: 0 });
   });
   if (!items.length) { toast('Add at least one item with a product and quantity', true); return; }
   const ref = `REQ-${String(S.requests.length+1).padStart(4,'0')}`;
@@ -943,9 +932,11 @@ async function approveRequest(id) {
   const rawItems = req.items && req.items.length > 0 ? req.items : [{ item: req.item, qty: req.qty, unit: req.unit, supplier: req.supplier }];
   const pricedItems = rawItems.map((it, idx) => {
     const unit_price = parseFloat(document.getElementById(`aprice-${id}-${idx}`)?.value) || 0;
-    return { ...it, unit_price, total: (it.qty||0) * unit_price };
+    const supplier   = (document.getElementById(`asup-${id}-${idx}`)?.value || '').trim();
+    return { ...it, supplier, unit_price, total: (it.qty||0) * unit_price };
   });
   if (pricedItems.some(i => i.unit_price <= 0)) { toast('Please fill in all prices before approving', true); return; }
+  if (pricedItems.some(i => !i.supplier)) { toast('Please fill in supplier for all items before approving', true); return; }
   const grandTotal = pricedItems.reduce((s, i) => s + i.total, 0);
   const approvedAt = new Date().toISOString();
   const poNumber   = `PO-${String(S.pos.length+1).padStart(4,'0')}`;
@@ -955,7 +946,7 @@ async function approveRequest(id) {
     po_number:  poNumber,
     item:       pricedItems.length === 1 ? pricedItems[0].item : `${pricedItems.length} items`,
     qty:        pricedItems[0].qty, unit: pricedItems[0].unit,
-    supplier:   pricedItems[0].supplier || req.supplier,
+    supplier:   pricedItems[0].supplier,
     unit_price: pricedItems[0].unit_price, total: grandTotal,
     items:      pricedItems,
     delivery: req.delivery||null, notes: req.notes,
@@ -1051,18 +1042,20 @@ function renderPendingApprovals() {
   container.innerHTML = pending.map(r => {
     const its = r.items && r.items.length > 0 ? r.items : [{ item: r.item, qty: r.qty, unit: r.unit, supplier: r.supplier }];
     const itemRows = its.map((it, idx) => `
-      <div class="flex items-center gap-2 py-2 ${idx>0?'border-t border-gray-100 dark:border-gray-800':''}">
-        <div class="flex-1 min-w-0">
+      <div class="grid gap-2 py-2 items-center ${idx>0?'border-t border-gray-100 dark:border-gray-800':''}" style="grid-template-columns:1fr 140px 110px 90px;">
+        <div>
           <span class="text-xs font-semibold text-gray-800 dark:text-gray-200">${it.item}</span>
-          <span class="text-xs text-gray-400 ml-2">${it.qty} ${it.unit}${it.supplier?' · '+it.supplier:''}</span>
+          <span class="text-xs text-gray-400 ml-2">${it.qty} ${it.unit}</span>
         </div>
-        <div class="flex items-center gap-1.5 flex-shrink-0">
-          <span class="text-xs text-gray-400">SAR</span>
+        <input id="asup-${r.id}-${idx}" type="text" list="suppliers-list" placeholder="Supplier…"
+          class="field-input" style="font-size:11px;padding:4px 7px;" autocomplete="off">
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-gray-400 flex-shrink-0">SAR</span>
           <input id="aprice-${r.id}-${idx}" type="number" min="0" step="0.01" placeholder="Unit price"
             oninput="calcApprovalTotal(${r.id})"
-            class="field-input" style="font-size:11px;width:90px;padding:4px 7px;">
-          <span id="aline-${r.id}-${idx}" class="text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap w-20 text-right">= SAR 0.00</span>
+            class="field-input" style="font-size:11px;padding:4px 7px;">
         </div>
+        <span id="aline-${r.id}-${idx}" class="text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap text-right">SAR 0.00</span>
       </div>`).join('');
     return `
     <div class="bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
