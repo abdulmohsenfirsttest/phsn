@@ -759,15 +759,14 @@ async function quickSaveProduct() {
 }
 
 function refreshAllPRDropdowns() {
-  const productOpts = '<option value="">— Select —</option>' +
-    S.products.map(p=>`<option value="${p.name}" data-unit="${p.unit||''}" data-price="${p.price||''}">${p.name}</option>`).join('');
-  const supplierOpts = '<option value="">— Select —</option>' +
-    S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
-  document.querySelectorAll('#prLinesTbody .pr-item-sel').forEach(sel => { const v=sel.value; sel.innerHTML=productOpts;  sel.value=v; });
-  document.querySelectorAll('#prLinesTbody .pr-sup-sel').forEach(sel  => { const v=sel.value; sel.innerHTML=supplierOpts; sel.value=v; });
+  const pdl = document.getElementById('products-list');
+  const sdl = document.getElementById('suppliers-list');
+  if (pdl) pdl.innerHTML = S.products.map(p=>`<option value="${p.name}">`).join('');
+  if (sdl) sdl.innerHTML = S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">`).join('');
 }
 
 function initPRForm() {
+  refreshAllPRDropdowns();
   document.getElementById('prLinesTbody').innerHTML = '';
   prLineCount = 0;
   document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000);
@@ -788,10 +787,10 @@ function addPRLine() {
   row.className = 'grid gap-3 items-center';
   row.style.gridTemplateColumns = '1fr 90px 90px 1fr 28px';
   row.innerHTML = `
-    <select class="pr-item-sel field-input" onchange="onPRProductSelect(${n},this)">${productOpts}</select>
+    <input  class="pr-item-sel field-input" type="text" list="products-list" placeholder="Type or select a product…" oninput="onPRProductSelect(${n},this)" autocomplete="off">
     <input  class="pr-qty-inp  field-input" type="number" min="0.01" step="any" placeholder="Qty">
     <select class="pr-unit-sel field-input">${unitOpts}</select>
-    <select class="pr-sup-sel  field-input">${supplierOpts}</select>
+    <input  class="pr-sup-sel  field-input" type="text" list="suppliers-list" placeholder="Type or select…" autocomplete="off">
     <button onclick="removePRLine(this)" title="Remove" style="color:#ef4444;font-size:16px;font-weight:700;background:none;border:none;cursor:pointer;line-height:1;padding:0;text-align:center;">×</button>`;
   document.getElementById('prLinesTbody').appendChild(row);
 }
@@ -821,12 +820,13 @@ function calcPRGrandTotal() {
   const gtEl = document.getElementById('prGrandTotal'); if (gtEl) gtEl.textContent = `SAR ${fmt(grand)}`;
 }
 
-function onPRProductSelect(n, sel) {
-  const opt = sel.options[sel.selectedIndex];
-  if (!opt || !opt.value) return;
-  const tr = document.querySelector(`#prLinesTbody [data-line="${n}"]`);
-  if (!tr) return;
-  if (opt.dataset.unit) tr.querySelector('.pr-unit-sel').value = opt.dataset.unit;
+function onPRProductSelect(n, inp) {
+  const name = inp.value.trim();
+  const product = S.products.find(p => p.name.toLowerCase() === name.toLowerCase());
+  if (!product) return;
+  const row = document.querySelector(`#prLinesTbody [data-line="${n}"]`);
+  if (!row) return;
+  if (product.unit) row.querySelector('.pr-unit-sel').value = product.unit;
 }
 
 // ==================== PRODUCTS ====================
@@ -1311,5 +1311,7 @@ function updateDashboard() {
 
 document.getElementById('poModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 </script>
+<datalist id="products-list"></datalist>
+<datalist id="suppliers-list"></datalist>
 </body>
 </html>
