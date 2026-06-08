@@ -367,6 +367,59 @@
               <button onclick="setPOFilter('paid')"     data-f="paid"     class="filter-btn">Paid</button>
             </div>
           </div>
+          <button onclick="toggleForm('addPOForm')" class="btn-primary">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New PO
+          </button>
+        </div>
+
+        <!-- New PO form -->
+        <div id="addPOForm" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 mb-4">
+          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-3">New Purchase Order</h3>
+          <div id="qa-product-po" class="hidden mb-3 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
+            <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Product</p>
+            <div class="flex gap-2">
+              <input id="qa-p-name-po" type="text" placeholder="Product name" class="field-input flex-1" style="font-size:12px;">
+              <button onclick="quickSaveProductPO()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
+              <button onclick="toggleQuickAdd('qa-product-po')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
+            </div>
+          </div>
+          <div id="qa-supplier-new-po" class="hidden mb-3 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
+            <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Supplier</p>
+            <div class="flex gap-2">
+              <input id="qa-s-name-po" type="text" placeholder="Company name" class="field-input flex-1" style="font-size:12px;">
+              <button onclick="quickSaveSupplierPO()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
+              <button onclick="toggleQuickAdd('qa-supplier-new-po')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
+            </div>
+          </div>
+          <!-- Column headers -->
+          <div class="grid gap-3 mb-1" style="grid-template-columns:1fr 70px 80px 1fr 120px 28px;">
+            <span class="field-label">Product <button onclick="toggleQuickAdd('qa-product-po')" style="margin-left:4px;padding:1px 6px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></span>
+            <span class="field-label">Qty</span>
+            <span class="field-label">Unit</span>
+            <span class="field-label">Supplier <button onclick="toggleQuickAdd('qa-supplier-new-po')" style="margin-left:4px;padding:1px 6px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></span>
+            <span class="field-label">Unit Price (SAR)</span>
+            <span></span>
+          </div>
+          <div id="poLinesTbody" class="space-y-2 mb-3"></div>
+          <div class="flex items-center justify-between mb-4">
+            <button onclick="addPOLine()" class="btn-secondary" style="font-size:11px;padding:5px 12px;gap:4px;">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              Add Item
+            </button>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500 font-semibold">Grand Total:</span>
+              <span id="poFormTotal" class="text-sm font-bold text-blue-700 dark:text-blue-400">SAR 0.00</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="field-label">Required Delivery By</label><input id="po-delivery" type="date" class="field-input"></div>
+            <div><label class="field-label">Notes</label><textarea id="po-notes" rows="2" placeholder="Optional notes…" class="field-input resize-none"></textarea></div>
+          </div>
+          <div class="flex justify-end gap-2 mt-4">
+            <button onclick="toggleForm('addPOForm')" class="btn-cancel">Cancel</button>
+            <button onclick="savePODirect()" class="btn-primary">Create PO</button>
+          </div>
         </div>
         <!-- Pending Approvals panel -->
         <div id="pendingApprovalsSection" class="hidden mb-4">
@@ -628,7 +681,8 @@ function toggleForm(id) {
   const el = document.getElementById(id);
   el.classList.toggle('hidden');
   if (!el.classList.contains('hidden')) {
-    if (id === 'addRequestForm')   { initPRForm(); }
+    if (id === 'addRequestForm') { initPRForm(); }
+    if (id === 'addPOForm')      { initPOForm(); }
     if (id === 'addInventoryForm') document.getElementById('i-date').valueAsDate = new Date();
   }
 }
@@ -1015,6 +1069,121 @@ function renderRequests() {
 // ==================== PURCHASE ORDERS ====================
 const PO_STATUS = { issued:'badge-blue', received:'badge-green', partial:'badge-orange', paid:'badge-purple', cancelled:'badge-red' };
 const PO_LABELS = { issued:'Issued', received:'Received', partial:'Partial', paid:'Paid', cancelled:'Cancelled' };
+
+let poLineCount = 0;
+
+function initPOForm() {
+  refreshAllPRDropdowns();
+  document.getElementById('poLinesTbody').innerHTML = '';
+  poLineCount = 0;
+  const d = document.getElementById('po-delivery');
+  if (d) d.valueAsDate = new Date(Date.now()+7*86400000);
+  document.getElementById('po-notes').value = '';
+  document.getElementById('poFormTotal').textContent = 'SAR 0.00';
+  addPOLine();
+}
+
+function addPOLine() {
+  poLineCount++;
+  const n = poLineCount;
+  const unitOpts = ['Unit','Bag','Kg','Ton','Box','Liter','Meter'].map(u=>`<option>${u}</option>`).join('');
+  const row = document.createElement('div');
+  row.dataset.poline = n;
+  row.className = 'grid gap-3 items-center';
+  row.style.gridTemplateColumns = '1fr 70px 80px 1fr 120px 28px';
+  row.innerHTML = `
+    <input class="pol-item field-input" type="text" list="products-list" placeholder="Type or select a product…" autocomplete="off">
+    <input class="pol-qty  field-input" type="number" min="0.01" step="any" placeholder="Qty" oninput="calcPOLine(${n})">
+    <select class="pol-unit field-input">${unitOpts}</select>
+    <input class="pol-sup  field-input" type="text" list="suppliers-list" placeholder="Type or select…" autocomplete="off">
+    <input class="pol-price field-input" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcPOLine(${n})">
+    <button onclick="removePOLine(this)" title="Remove" style="color:#ef4444;font-size:16px;font-weight:700;background:none;border:none;cursor:pointer;line-height:1;padding:0;text-align:center;">×</button>`;
+  document.getElementById('poLinesTbody').appendChild(row);
+}
+
+function removePOLine(btn) {
+  const rows = document.querySelectorAll('#poLinesTbody [data-poline]');
+  if (rows.length <= 1) { toast('At least one item is required', true); return; }
+  btn.closest('[data-poline]').remove();
+  calcPOFormTotal();
+}
+
+function calcPOLine(n) {
+  const row = document.querySelector(`#poLinesTbody [data-poline="${n}"]`);
+  if (!row) return;
+  calcPOFormTotal();
+}
+
+function calcPOFormTotal() {
+  let grand = 0;
+  document.querySelectorAll('#poLinesTbody [data-poline]').forEach(row => {
+    const qty   = parseFloat(row.querySelector('.pol-qty').value)   || 0;
+    const price = parseFloat(row.querySelector('.pol-price').value) || 0;
+    grand += qty * price;
+  });
+  const el = document.getElementById('poFormTotal');
+  if (el) el.textContent = `SAR ${fmt(grand)}`;
+}
+
+async function quickSaveProductPO() {
+  const name = document.getElementById('qa-p-name-po').value.trim();
+  if (!name) { toast('Product name is required', true); return; }
+  const sku = `SKU-${String(S.products.length+1).padStart(3,'0')}`;
+  const { data, error } = await sb.from('products').insert({ name, sku, category:'General', unit:'Unit', price:0, min_stock:0 }).select().single();
+  if (error) { toast('Error: '+error.message, true); return; }
+  S.products.push(data);
+  document.getElementById('qa-p-name-po').value = '';
+  document.getElementById('qa-product-po').classList.add('hidden');
+  refreshAllPRDropdowns();
+  toast('Product added');
+}
+
+async function quickSaveSupplierPO() {
+  const name = document.getElementById('qa-s-name-po').value.trim();
+  if (!name) { toast('Company name is required', true); return; }
+  const code = `SUP-${String(S.suppliers.length+1).padStart(3,'0')}`;
+  const { data, error } = await sb.from('suppliers').insert({ code, name, status:'active' }).select().single();
+  if (error) { toast('Error: '+error.message, true); return; }
+  S.suppliers.push(data);
+  document.getElementById('qa-s-name-po').value = '';
+  document.getElementById('qa-supplier-new-po').classList.add('hidden');
+  refreshAllPRDropdowns();
+  toast('Supplier added');
+}
+
+async function savePODirect() {
+  const rows = document.querySelectorAll('#poLinesTbody [data-poline]');
+  const items = [];
+  rows.forEach(row => {
+    const item       = row.querySelector('.pol-item').value.trim();
+    const qty        = parseFloat(row.querySelector('.pol-qty').value) || 0;
+    const unit       = row.querySelector('.pol-unit').value;
+    const supplier   = row.querySelector('.pol-sup').value.trim();
+    const unit_price = parseFloat(row.querySelector('.pol-price').value) || 0;
+    if (item && qty > 0) items.push({ item, qty, unit, supplier, unit_price, total: qty*unit_price });
+  });
+  if (!items.length)                          { toast('Add at least one item', true); return; }
+  if (items.some(i => !i.supplier))           { toast('Please fill in supplier for all items', true); return; }
+  if (items.some(i => i.unit_price <= 0))     { toast('Please fill in unit price for all items', true); return; }
+  const grandTotal = items.reduce((s,i)=>s+i.total, 0);
+  const poNumber   = `PO-${String(S.pos.length+1).padStart(4,'0')}`;
+  const first = items[0];
+  const { data, error } = await sb.from('purchase_orders').insert({
+    po_number: poNumber,
+    item:      items.length===1 ? first.item : `${items.length} items`,
+    qty: first.qty, unit: first.unit, supplier: first.supplier,
+    unit_price: first.unit_price, total: grandTotal,
+    items,
+    delivery: document.getElementById('po-delivery').value || null,
+    notes:    document.getElementById('po-notes').value.trim() || null,
+    issued_by: S.user, issued_at: new Date().toISOString(), delivery_status: 'issued'
+  }).select().single();
+  if (error) { toast('Error creating PO: '+error.message, true); return; }
+  S.pos.push(data);
+  toggleForm('addPOForm');
+  renderPOs(); updateDashboard();
+  toast(`PO ${poNumber} created`);
+}
 
 async function updatePOStatus(id, status) {
   const { error } = await sb.from('purchase_orders').update({ delivery_status: status }).eq('id', id);
