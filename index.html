@@ -309,47 +309,54 @@
         </div>
 
         <div id="addRequestForm" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 mb-4">
-          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">New Purchase Request (PR)</h3>
-          <div class="grid grid-cols-3 gap-4">
-            <div>
-              <label class="field-label">Item / Product *</label>
-              <div class="flex gap-1.5">
-                <select id="r-item" onchange="onProductSelect()" class="field-input flex-1"><option value="">— Select product —</option></select>
-                <button type="button" onclick="toggleQuickAdd('qa-product')" title="Add new product" style="padding:7px 10px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;flex-shrink:0;">+</button>
-              </div>
-              <div id="qa-product" class="hidden mt-2 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
-                <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Product</p>
-                <div class="flex gap-2">
-                  <input id="qa-p-name" type="text" placeholder="Product name" class="field-input flex-1" style="font-size:12px;">
-                  <button onclick="quickSaveProduct()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
-                  <button onclick="toggleQuickAdd('qa-product')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
-                </div>
-              </div>
+          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-3">New Purchase Request (PR)</h3>
+          <!-- Quick Add panels -->
+          <div id="qa-product" class="hidden mb-3 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
+            <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Product</p>
+            <div class="flex gap-2">
+              <input id="qa-p-name" type="text" placeholder="Product name" class="field-input flex-1" style="font-size:12px;">
+              <button onclick="quickSaveProduct()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
+              <button onclick="toggleQuickAdd('qa-product')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
             </div>
-            <div><label class="field-label">Quantity *</label>           <input id="r-qty"      type="number" placeholder="0" min="1"              class="field-input"></div>
-            <div><label class="field-label">Unit</label>
-              <select id="r-unit" class="field-input"><option>Bag</option><option>Kg</option><option>Ton</option><option>Unit</option><option>Box</option><option>Liter</option><option>Meter</option></select>
+          </div>
+          <div id="qa-supplier" class="hidden mb-3 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
+            <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Supplier</p>
+            <div class="flex gap-2">
+              <input id="qa-s-name" type="text" placeholder="Company name" class="field-input flex-1" style="font-size:12px;">
+              <button onclick="quickSaveSupplier()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
+              <button onclick="toggleQuickAdd('qa-supplier')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
             </div>
-            <div>
-              <label class="field-label">Supplier *</label>
-              <div class="flex gap-1.5">
-                <select id="r-supplier" class="field-input flex-1"><option value="">— Select supplier —</option></select>
-                <button type="button" onclick="toggleQuickAdd('qa-supplier')" title="Add new supplier" style="padding:7px 10px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;flex-shrink:0;">+</button>
-              </div>
-              <div id="qa-supplier" class="hidden mt-2 p-3 rounded-lg border" style="background:#eff6ff;border-color:#bfdbfe;">
-                <p class="text-xs font-semibold mb-2" style="color:#1d4ed8;">Quick Add Supplier</p>
-                <div class="flex gap-2">
-                  <input id="qa-s-name" type="text" placeholder="Company name" class="field-input flex-1" style="font-size:12px;">
-                  <button onclick="quickSaveSupplier()" class="btn-primary" style="font-size:11px;padding:5px 10px;">Add</button>
-                  <button onclick="toggleQuickAdd('qa-supplier')" class="btn-cancel" style="font-size:11px;padding:5px 10px;">Cancel</button>
-                </div>
-              </div>
+          </div>
+          <!-- Line items table -->
+          <div class="overflow-x-auto mb-3 rounded-lg border border-gray-100 dark:border-gray-800">
+            <table class="w-full" style="font-size:12px;">
+              <thead class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <tr>
+                  <th class="th">Product <button onclick="toggleQuickAdd('qa-product')" title="Add new product" style="margin-left:4px;padding:1px 5px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></th>
+                  <th class="th" style="width:60px;">Qty</th>
+                  <th class="th" style="width:72px;">Unit</th>
+                  <th class="th">Supplier <button onclick="toggleQuickAdd('qa-supplier')" title="Add new supplier" style="margin-left:4px;padding:1px 5px;background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;">+</button></th>
+                  <th class="th" style="width:90px;">Unit Price</th>
+                  <th class="th" style="width:90px;">Total</th>
+                  <th class="th" style="width:28px;"></th>
+                </tr>
+              </thead>
+              <tbody id="prLinesTbody"></tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-between mb-4">
+            <button onclick="addPRLine()" class="btn-secondary" style="font-size:11px;padding:5px 12px;gap:4px;">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              Add Item
+            </button>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500 dark:text-gray-400 font-semibold">Grand Total:</span>
+              <span id="prGrandTotal" class="text-sm font-bold text-blue-700 dark:text-blue-400">SAR 0.00</span>
             </div>
-            <div><label class="field-label">Unit Price (SAR) *</label>   <input id="r-price"    type="number" placeholder="0.00" step="0.01"        class="field-input"></div>
-            <div><label class="field-label">Required Delivery By</label> <input id="r-delivery" type="date"                                         class="field-input"></div>
-            <div class="col-span-3"><label class="field-label">Notes / Justification</label>
-              <textarea id="r-notes" rows="2" placeholder="Optional notes…" class="field-input resize-none"></textarea>
-            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="field-label">Required Delivery By</label><input id="r-delivery" type="date" class="field-input"></div>
+            <div><label class="field-label">Notes / Justification</label><textarea id="r-notes" rows="2" placeholder="Optional notes…" class="field-input resize-none"></textarea></div>
           </div>
           <div class="flex justify-end gap-2 mt-4">
             <button onclick="toggleForm('addRequestForm')" class="btn-cancel">Cancel</button>
@@ -552,6 +559,7 @@ const sb = createClient(
   'sb_publishable_a68c9bBoXPKgAcnPA3xAew_tZDInx3v'
 );
 
+let prLineCount = 0;
 // ==================== STATE ====================
 const S = {
   user:'Admin', role:'admin',
@@ -625,7 +633,7 @@ function showView(v) {
   const fn = {suppliers:renderSuppliers,products:renderProducts,requests:renderRequests,pos:renderPOs,inventory:renderInventory,reports:renderReports};
   if (fn[v]) fn[v]();
   if (v === 'dashboard') updateDashboard();
-  if (v === 'requests') { populateSupplierDropdown(); populateProductDropdown(); }
+  if (v === 'requests') { renderRequests(); }
   if (v === 'pos') { renderPendingApprovals(); renderPOs(); }
 }
 
@@ -634,7 +642,7 @@ function toggleForm(id) {
   const el = document.getElementById(id);
   el.classList.toggle('hidden');
   if (!el.classList.contains('hidden')) {
-    if (id === 'addRequestForm')   { document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000); populateSupplierDropdown(); populateProductDropdown(); }
+    if (id === 'addRequestForm')   { initPRForm(); }
     if (id === 'addInventoryForm') document.getElementById('i-date').valueAsDate = new Date();
   }
 }
@@ -746,8 +754,7 @@ async function quickSaveSupplier() {
   S.suppliers.push(data);
   document.getElementById('qa-s-name').value = '';
   document.getElementById('qa-supplier').classList.add('hidden');
-  populateSupplierDropdown();
-  document.getElementById('r-supplier').value = name;
+  refreshAllPRDropdowns();
   toast('Supplier added');
 }
 
@@ -760,9 +767,98 @@ async function quickSaveProduct() {
   S.products.push(data);
   document.getElementById('qa-p-name').value = '';
   document.getElementById('qa-product').classList.add('hidden');
-  populateProductDropdown();
-  document.getElementById('r-item').value = name;
+  refreshAllPRDropdowns();
   toast('Product added');
+}
+
+function refreshAllPRDropdowns() {
+  const productOpts = '<option value="">— Select —</option>' +
+    S.products.map(p=>`<option value="${p.name}" data-unit="${p.unit||''}" data-price="${p.price||''}">${p.name}</option>`).join('');
+  const supplierOpts = '<option value="">— Select —</option>' +
+    S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
+  document.querySelectorAll('#prLinesTbody .pr-item-sel').forEach(sel => { const v=sel.value; sel.innerHTML=productOpts; sel.value=v; });
+  document.querySelectorAll('#prLinesTbody .pr-sup-sel').forEach(sel  => { const v=sel.value; sel.innerHTML=supplierOpts; sel.value=v; });
+}
+
+function initPRForm() {
+  document.getElementById('prLinesTbody').innerHTML = '';
+  prLineCount = 0;
+  document.getElementById('prGrandTotal').textContent = 'SAR 0.00';
+  document.getElementById('r-delivery').valueAsDate = new Date(Date.now()+7*86400000);
+  document.getElementById('r-notes').value = '';
+  addPRLine();
+}
+
+function addPRLine() {
+  prLineCount++;
+  const n = prLineCount;
+  const productOpts = '<option value="">— Select —</option>' +
+    S.products.map(p=>`<option value="${p.name}" data-unit="${p.unit||''}" data-price="${p.price||''}">${p.name}</option>`).join('');
+  const supplierOpts = '<option value="">— Select —</option>' +
+    S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
+  const unitOpts = ['Unit','Bag','Kg','Ton','Box','Liter','Meter'].map(u=>`<option>${u}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.dataset.line = n;
+  tr.className = 'border-t border-gray-100 dark:border-gray-700';
+  tr.innerHTML = `
+    <td class="td" style="padding:4px 6px;">
+      <select class="pr-item-sel field-input" style="font-size:11px;min-width:130px;padding:4px 6px;" onchange="onPRProductSelect(${n},this)">${productOpts}</select>
+    </td>
+    <td class="td" style="padding:4px 6px;">
+      <input class="pr-qty-inp field-input" type="number" min="0.01" step="any" placeholder="0" style="font-size:11px;width:58px;padding:4px 6px;" oninput="calcPRLine(${n})">
+    </td>
+    <td class="td" style="padding:4px 6px;">
+      <select class="pr-unit-sel field-input" style="font-size:11px;width:70px;padding:4px 6px;">${unitOpts}</select>
+    </td>
+    <td class="td" style="padding:4px 6px;">
+      <select class="pr-sup-sel field-input" style="font-size:11px;min-width:120px;padding:4px 6px;">${supplierOpts}</select>
+    </td>
+    <td class="td" style="padding:4px 6px;">
+      <input class="pr-price-inp field-input" type="number" min="0" step="0.01" placeholder="0.00" style="font-size:11px;width:82px;padding:4px 6px;" oninput="calcPRLine(${n})">
+    </td>
+    <td class="td pr-total-cell" style="padding:4px 8px;font-size:11px;font-weight:600;white-space:nowrap;color:#374151;">SAR 0.00</td>
+    <td class="td" style="padding:4px 4px;">
+      <button onclick="removePRLine(this)" style="color:#ef4444;font-size:15px;font-weight:700;background:none;border:none;cursor:pointer;line-height:1;padding:2px 4px;" title="Remove">×</button>
+    </td>`;
+  document.getElementById('prLinesTbody').appendChild(tr);
+}
+
+function removePRLine(btn) {
+  const rows = document.querySelectorAll('#prLinesTbody tr');
+  if (rows.length <= 1) { toast('At least one item is required', true); return; }
+  btn.closest('tr').remove();
+  calcPRGrandTotal();
+}
+
+function calcPRLine(n) {
+  const tr = document.querySelector(`#prLinesTbody tr[data-line="${n}"]`);
+  if (!tr) return;
+  const qty   = parseFloat(tr.querySelector('.pr-qty-inp').value)   || 0;
+  const price = parseFloat(tr.querySelector('.pr-price-inp').value) || 0;
+  tr.querySelector('.pr-total-cell').textContent = `SAR ${fmt(qty * price)}`;
+  calcPRGrandTotal();
+}
+
+function calcPRGrandTotal() {
+  let grand = 0;
+  document.querySelectorAll('#prLinesTbody tr').forEach(tr => {
+    const qty   = parseFloat(tr.querySelector('.pr-qty-inp').value)   || 0;
+    const price = parseFloat(tr.querySelector('.pr-price-inp').value) || 0;
+    grand += qty * price;
+  });
+  document.getElementById('prGrandTotal').textContent = `SAR ${fmt(grand)}`;
+}
+
+function onPRProductSelect(n, sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) return;
+  const tr = document.querySelector(`#prLinesTbody tr[data-line="${n}"]`);
+  if (!tr) return;
+  if (opt.dataset.unit) tr.querySelector('.pr-unit-sel').value = opt.dataset.unit;
+  if (opt.dataset.price && parseFloat(opt.dataset.price) > 0) {
+    tr.querySelector('.pr-price-inp').value = opt.dataset.price;
+    calcPRLine(n);
+  }
 }
 
 // ==================== PRODUCTS ====================
@@ -826,21 +922,36 @@ function exportProductsCSV() {
 
 // ==================== REQUESTS ====================
 async function saveRequest() {
-  const item = q('r-item'), qty = parseFloat(document.getElementById('r-qty').value);
-  const supplier = document.getElementById('r-supplier').value;
-  const price = parseFloat(document.getElementById('r-price').value);
-  if (!item||!qty||!supplier||!price) { toast('Please fill all required fields', true); return; }
+  const rows = document.querySelectorAll('#prLinesTbody tr');
+  const items = [];
+  rows.forEach(tr => {
+    const item      = tr.querySelector('.pr-item-sel').value.trim();
+    const qty       = parseFloat(tr.querySelector('.pr-qty-inp').value) || 0;
+    const unit      = tr.querySelector('.pr-unit-sel').value;
+    const supplier  = tr.querySelector('.pr-sup-sel').value;
+    const unit_price = parseFloat(tr.querySelector('.pr-price-inp').value) || 0;
+    if (item && qty > 0) items.push({ item, qty, unit, supplier, unit_price, total: qty * unit_price });
+  });
+  if (!items.length) { toast('Add at least one item with a product and quantity', true); return; }
+  const grandTotal = items.reduce((s, i) => s + i.total, 0);
   const ref = `REQ-${String(S.requests.length+1).padStart(4,'0')}`;
+  const first = items[0];
   const { data, error } = await sb.from('requests').insert({
-    ref, item, qty, unit: document.getElementById('r-unit').value,
-    supplier, unit_price: price, total: qty*price,
-    delivery: document.getElementById('r-delivery').value || null,
-    notes: q('r-notes'), status: 'pending',
+    ref,
+    item:       items.length === 1 ? first.item : `${items.length} items`,
+    qty:        first.qty,
+    unit:       first.unit,
+    supplier:   first.supplier || items.find(i=>i.supplier)?.supplier || '',
+    unit_price: first.unit_price,
+    total:      grandTotal,
+    items:      items,
+    delivery:   document.getElementById('r-delivery').value || null,
+    notes:      q('r-notes'),
+    status:     'pending',
     submitted_by: S.user, submitted_at: new Date().toISOString()
   }).select().single();
   if (error) { toast('Error saving request: ' + error.message, true); return; }
   S.requests.push(data);
-  ['r-item','r-qty','r-price','r-notes'].forEach(id=>document.getElementById(id).value='');
   toggleForm('addRequestForm');
   renderRequests(); updateDashboard();
   toast('Request submitted for approval');
@@ -852,9 +963,14 @@ async function approveRequest(id) {
   const poNumber   = `PO-${String(S.pos.length+1).padStart(4,'0')}`;
   const { error: e1 } = await sb.from('requests').update({ status:'approved', approved_by:S.user, approved_at:approvedAt }).eq('id', id);
   if (e1) { toast('Error approving request', true); return; }
+  const items = req.items || [{ item: req.item, qty: req.qty, unit: req.unit, supplier: req.supplier, unit_price: req.unit_price, total: req.total }];
   const { data: poData, error: e2 } = await sb.from('purchase_orders').insert({
-    po_number: poNumber, item: req.item, qty: req.qty, unit: req.unit,
-    supplier: req.supplier, unit_price: req.unit_price, total: req.total,
+    po_number: poNumber,
+    item:      items.length === 1 ? items[0].item : `${items.length} items`,
+    qty:       items[0].qty, unit: items[0].unit,
+    supplier:  items[0].supplier || req.supplier,
+    unit_price: items[0].unit_price, total: req.total,
+    items:     items,
     delivery: req.delivery||null, notes: req.notes,
     issued_by: S.user, issued_at: approvedAt, delivery_status: 'issued'
   }).select().single();
@@ -888,16 +1004,25 @@ function renderRequests() {
   if (kw) list = list.filter(r=>r.item.toLowerCase().includes(kw)||(r.supplier||'').toLowerCase().includes(kw)||(r.ref||'').toLowerCase().includes(kw));
   if (!list.length) { tb.innerHTML=`<tr><td colspan="8" class="empty-row">No requests found</td></tr>`; return; }
   const B = {pending:'badge-orange',approved:'badge-green',rejected:'badge-red'};
-  tb.innerHTML = list.map(r=>`<tr class="border-t border-gray-100 dark:border-gray-800 dr">
+  tb.innerHTML = list.map(r=>{
+    const its = r.items && r.items.length > 1;
+    const itemCell = its
+      ? `<div class="font-semibold text-gray-900 dark:text-white">${r.items.length} items</div><div class="text-xs text-gray-400 truncate" style="max-width:180px;">${r.items.map(i=>i.item).join(', ')}</div>`
+      : `<div class="font-semibold text-gray-900 dark:text-white">${r.item}</div>`;
+    const qtyCell = its ? `<span class="text-xs text-gray-400">—</span>` : `${r.qty} ${r.unit}`;
+    const supCell = its
+      ? `<span class="text-xs text-gray-400">${[...new Set(r.items.map(i=>i.supplier).filter(Boolean))].join(', ')||'—'}</span>`
+      : (r.supplier||'—');
+    return `<tr class="border-t border-gray-100 dark:border-gray-800 dr">
     <td class="td font-mono text-xs font-bold text-blue-700 dark:text-blue-400">${r.ref}</td>
-    <td class="td font-semibold text-gray-900 dark:text-white">${r.item}</td>
-    <td class="td text-gray-600 dark:text-gray-400">${r.qty} ${r.unit}</td>
-    <td class="td text-gray-600 dark:text-gray-400">${r.supplier}</td>
+    <td class="td">${itemCell}</td>
+    <td class="td text-gray-600 dark:text-gray-400 text-xs">${qtyCell}</td>
+    <td class="td text-gray-600 dark:text-gray-400 text-xs">${supCell}</td>
     <td class="td font-semibold text-gray-900 dark:text-gray-200">SAR ${fmt(r.total)}</td>
     <td class="td text-gray-400 dark:text-gray-500 text-xs">${new Date(r.submitted_at).toLocaleDateString()}</td>
     <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${B[r.status]}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td>
     <td class="td">${r.status==='pending'?`<span class="text-xs text-orange-500 italic">Awaiting approval in PO</span>`:'—'}</td>
-  </tr>`).join('');
+  </tr>`;}).join('');
 }
 
 // ==================== PURCHASE ORDERS ====================
@@ -935,22 +1060,28 @@ function renderPendingApprovals() {
     container.innerHTML = '<p class="text-xs text-gray-400 py-2">No pending requests</p>';
     return;
   }
-  container.innerHTML = pending.map(r => `
-    <div class="bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 rounded-xl p-4 flex items-center justify-between gap-4">
+  container.innerHTML = pending.map(r => {
+    const its = r.items && r.items.length > 1;
+    const itemsHtml = its
+      ? r.items.map((i,idx)=>`<div class="text-xs text-gray-600 dark:text-gray-400 py-1 ${idx>0?'border-t border-gray-100 dark:border-gray-800':''}">${i.item} · ${i.qty} ${i.unit}${i.supplier?' · '+i.supplier:''} · <span class="font-semibold">SAR ${fmt(i.total)}</span></div>`).join('')
+      : `<p class="text-xs text-gray-500 dark:text-gray-400">${r.qty} ${r.unit} · ${r.supplier||'—'}</p>`;
+    return `
+    <div class="bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 rounded-xl p-4 flex items-start justify-between gap-4">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 mb-1">
           <span class="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">${r.ref}</span>
           <span class="text-xs text-gray-400">${new Date(r.submitted_at).toLocaleDateString()}</span>
+          ${its?`<span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${r.items.length} items</span>`:''}
         </div>
-        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">${r.item}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400">${r.qty} ${r.unit} · ${r.supplier} · <span class="font-semibold text-gray-700 dark:text-gray-300">SAR ${fmt(r.total)}</span></p>
+        ${itemsHtml}
+        <div class="mt-1 text-xs font-bold text-gray-800 dark:text-gray-200">Total: SAR ${fmt(r.total)}</div>
         ${r.notes ? `<p class="text-xs text-gray-400 mt-1 italic">${r.notes}</p>` : ''}
       </div>
-      <div class="flex gap-2 flex-shrink-0">
+      <div class="flex gap-2 flex-shrink-0 mt-1">
         <button onclick="approveRequest(${r.id})" class="btn-primary" style="font-size:11px;padding:6px 14px;background:#16a34a;">Approve</button>
         <button onclick="rejectRequest(${r.id})" class="btn-cancel" style="font-size:11px;padding:6px 14px;color:#dc2626;border-color:#fca5a5;">Reject</button>
       </div>
-    </div>`).join('');
+    </div>`;}).join('');
 }
 
 function renderPOs() {
@@ -1010,14 +1141,16 @@ function openPO(id) {
           <th style="padding:9px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;">Unit Price</th>
           <th style="padding:9px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;">Total</th>
         </tr></thead>
-        <tbody><tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:11px 12px;font-size:12px;">1</td>
-          <td style="padding:11px 12px;font-size:13px;font-weight:600;">${po.item}</td>
-          <td style="padding:11px 12px;font-size:12px;text-align:center;">${po.unit}</td>
-          <td style="padding:11px 12px;font-size:13px;font-weight:700;text-align:center;">${po.qty}</td>
-          <td style="padding:11px 12px;font-size:12px;text-align:right;">SAR ${fmt(po.unit_price)}</td>
-          <td style="padding:11px 12px;font-size:13px;font-weight:700;text-align:right;">SAR ${fmt(po.total)}</td>
-        </tr></tbody>
+        <tbody>${(po.items && po.items.length > 1 ? po.items : [{ item: po.item, qty: po.qty, unit: po.unit, supplier: po.supplier, unit_price: po.unit_price, total: po.total }]).map((it,i)=>`
+          <tr style="border-bottom:1px solid #e5e7eb;">
+            <td style="padding:11px 12px;font-size:12px;">${i+1}</td>
+            <td style="padding:11px 12px;font-size:13px;font-weight:600;">${it.item}${it.supplier&&it.supplier!==po.supplier?`<span style="font-size:10px;color:#6b7280;font-weight:400;display:block;">${it.supplier}</span>`:''}</td>
+            <td style="padding:11px 12px;font-size:12px;text-align:center;">${it.unit}</td>
+            <td style="padding:11px 12px;font-size:13px;font-weight:700;text-align:center;">${it.qty}</td>
+            <td style="padding:11px 12px;font-size:12px;text-align:right;">SAR ${fmt(it.unit_price)}</td>
+            <td style="padding:11px 12px;font-size:13px;font-weight:700;text-align:right;">SAR ${fmt(it.total)}</td>
+          </tr>`).join('')}
+        </tbody>
         <tfoot><tr style="background:#f8fafc;">
           <td colspan="5" style="padding:11px 12px;text-align:right;font-size:12px;font-weight:700;color:#0f2240;">TOTAL (SAR):</td>
           <td style="padding:11px 12px;text-align:right;font-size:17px;font-weight:900;color:#1d4ed8;">SAR ${fmt(po.total)}</td>
