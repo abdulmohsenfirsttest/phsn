@@ -95,12 +95,12 @@
       </button>
       <button onclick="showView('requests')" id="nav-requests" class="sidebar-link">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-        Requests
+        Purchase Requests (PR)
         <span id="pendingBadge" class="hidden ml-auto bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">0</span>
       </button>
       <button onclick="showView('pos')" id="nav-pos" class="sidebar-link">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        Purchase Orders
+        Purchase Orders (PO)
       </button>
       <button onclick="showView('inventory')" id="nav-inventory" class="sidebar-link">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582 4 8 4m0 5v5"/></svg>
@@ -294,7 +294,7 @@
       <div id="view-requests" class="view">
         <div class="flex justify-between items-center mb-4">
           <div class="flex items-center gap-3">
-            <input id="search-requests" oninput="renderRequests()" type="text" placeholder="Search requests…" class="field-input w-48 text-xs">
+            <input id="search-requests" oninput="renderRequests()" type="text" placeholder="Search PRs…" class="field-input w-48 text-xs">
             <div class="flex gap-1.5" id="reqFilterBtns">
               <button onclick="setReqFilter('all')"      data-f="all"      class="filter-btn active-filter">All</button>
               <button onclick="setReqFilter('pending')"  data-f="pending"  class="filter-btn">Pending</button>
@@ -304,12 +304,12 @@
           </div>
           <button onclick="toggleForm('addRequestForm')" class="btn-primary">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            New Request
+            New PR
           </button>
         </div>
 
         <div id="addRequestForm" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 mb-4">
-          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">New Purchase Request &amp; Quotation</h3>
+          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">New Purchase Request (PR)</h3>
           <div class="grid grid-cols-3 gap-4">
             <div><label class="field-label">Item / Product *</label>    <input id="r-item"     type="text"   placeholder="e.g. Cement Bags 50kg"  class="field-input"></div>
             <div><label class="field-label">Quantity *</label>           <input id="r-qty"      type="number" placeholder="0" min="1"              class="field-input"></div>
@@ -581,8 +581,8 @@ function showView(v) {
     dashboard: ['Dashboard','Overview of procurement activities'],
     suppliers: ['Suppliers','Manage your supplier directory'],
     products:  ['Products','Manage your product catalog'],
-    requests:  ['Requests & Quotations','Submit and manage purchase requests'],
-    pos:       ['Purchase Orders','View and manage approved purchase orders'],
+    requests:  ['Purchase Requests (PR)','Submit and manage purchase requests — approved PRs become POs automatically'],
+    pos:       ['Purchase Orders (PO)','View and manage approved purchase orders'],
     inventory: ['Inventory','Track stock in and out'],
     reports:   ['Reports','Spending analytics and insights']
   };
