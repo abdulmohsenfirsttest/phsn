@@ -916,6 +916,20 @@ async function saveRequest() {
     notes:    q('r-notes')
   };
   if (S.editingReq) {
+    const orig = S.requests.find(r => r.id === S.editingReq) || {};
+    let msg = `updated`;
+    if (orig.status === 'approved') {
+      const oldItems = orig.items && orig.items.length > 0 ? orig.items : [{ item: orig.item, supplier: orig.supplier, unit_price: orig.unit_price }];
+      payload.items = items.map(it => {
+        const m = oldItems.find(o => (o.item||'').toLowerCase() === it.item.toLowerCase());
+        const unit_price = m ? (parseFloat(m.unit_price) || 0) : 0;
+        return { ...it, supplier: m?.supplier || '', unit_price, total: unit_price * it.qty };
+      });
+      payload.total    = payload.items.reduce((s,i) => s + i.total, 0);
+      payload.supplier = payload.items[0].supplier || payload.items.find(i=>i.supplier)?.supplier || '';
+      msg = `updated — note: its PO was not changed`;
+    }
+    if (orig.status === 'rejected') { payload.status = 'pending'; msg = `updated and resubmitted for approval`; }
     const { data, error } = await sb.from('requests').update(payload).eq('id', S.editingReq).select().single();
     if (error) { toast('Error updating request: ' + error.message, true); return; }
     const idx = S.requests.findIndex(r => r.id === S.editingReq);
@@ -923,7 +937,7 @@ async function saveRequest() {
     S.editingReq = null;
     toggleForm('addRequestForm');
     renderRequests(); renderPendingApprovals(); updateDashboard();
-    toast(`${data.ref} updated`);
+    toast(`${data.ref} ${msg}`);
     return;
   }
   const ref = `REQ-${String(S.requests.length+1).padStart(4,'0')}`;
@@ -944,7 +958,6 @@ async function saveRequest() {
 
 function editRequest(id) {
   const r = S.requests.find(x => x.id === id); if (!r) return;
-  if (r.status !== 'pending') { toast('Only pending requests can be edited', true); return; }
   showView('requests');
   const form = document.getElementById('addRequestForm');
   form.classList.remove('hidden');
@@ -1063,7 +1076,7 @@ function renderRequests() {
     <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${B[r.status]}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td>
     <td class="td"><div class="flex items-center gap-3 whitespace-nowrap">
       <button onclick="openPR(${r.id})" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">View / PDF</button>
-      ${r.status==='pending'?`<button onclick="editRequest(${r.id})" class="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300">Edit</button>`:''}
+      <button onclick="editRequest(${r.id})" class="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300">Edit</button>
     </div></td>
   </tr>`;}).join('');
 }
