@@ -971,7 +971,7 @@ async function saveRequest() {
     toast(`${data.ref} ${msg}`);
     return;
   }
-  const ref = `REQ-${String(S.requests.length+1).padStart(4,'0')}`;
+  const ref = `REQ-${String(S.requests.reduce((m,r)=>Math.max(m, parseInt((r.ref||'').replace(/\D/g,''))||0), 0)+1).padStart(4,'0')}`;
   const { data, error } = await sb.from('requests').insert({
     ref, ...payload,
     unit_price: 0,
@@ -1042,7 +1042,7 @@ async function approveRequest(id) {
   if (pricedItems.some(i => !i.supplier)) { toast('Please fill in supplier for all items before approving', true); return; }
   const grandTotal = pricedItems.reduce((s, i) => s + i.total, 0);
   const approvedAt = new Date().toISOString();
-  const poNumber   = `PO-${String(S.pos.length+1).padStart(4,'0')}`;
+  const poNumber   = `PO-${String(S.pos.reduce((m,p)=>Math.max(m, parseInt((p.po_number||'').replace(/\D/g,''))||0), 0)+1).padStart(4,'0')}`;
   const { error: e1 } = await sb.from('requests').update({ status:'approved', approved_by:S.user, approved_at:approvedAt, total: grandTotal, items: pricedItems }).eq('id', id);
   if (e1) { toast('Error approving request', true); return; }
   const { data: poData, error: e2 } = await sb.from('purchase_orders').insert({
@@ -1360,7 +1360,7 @@ async function savePODirect() {
     toast(`${data.po_number} updated`);
     return;
   }
-  const poNumber   = `PO-${String(S.pos.length+1).padStart(4,'0')}`;
+  const poNumber   = `PO-${String(S.pos.reduce((m,p)=>Math.max(m, parseInt((p.po_number||'').replace(/\D/g,''))||0), 0)+1).padStart(4,'0')}`;
   const { data, error } = await sb.from('purchase_orders').insert({
     po_number: poNumber,
     item:      items.length===1 ? first.item : `${items.length} items`,
