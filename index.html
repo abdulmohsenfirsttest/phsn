@@ -1042,26 +1042,55 @@ async function approveRequest(id) {
   if (pricedItems.some(i => !i.supplier)) { toast('Please fill in supplier for all items before approving', true); return; }
   const grandTotal = pricedItems.reduce((s, i) => s + i.total, 0);
   const approvedAt = new Date().toISOString();
-  const poNumber   = `PO-${String(S.pos.reduce((m,p)=>Math.max(m, parseInt((p.po_number||'').replace(/\D/g,''))||0), 0)+1).padStart(4,'0')}`;
-  const { error: e1 } = await sb.from('requests').update({ status:'approved', approved_by:S.user, approved_at:approvedAt, total: grandTotal, items: pricedItems }).eq('id', id);
-  if (e1) { toast('Error approving request', true); return; }
-  const { data: poData, error: e2 } = await sb.from('purchase_orders').insert({
-    po_number:  poNumber,
+  const existingPO = req.po_number ? S.pos.find(p => p.po_number === req.po_number) : null;
+  const poNumber   = existingPO ? existingPO.po_number : `PO-${String(S.pos.reduce((m,p)=>Math.max(m, parseInt((p.po_number||'').replace(/\D/g,''))||0), 0)+1).padStart(4,'0')}`;
+  const reqPatch = { status:'approved', approved_by:S.user, approved_at:approvedAt, total: grandTotal, items: pricedItems, po_number: poNumber };
+  let { error: e1 } = await sb.from('requests').update(reqPatch).eq('id', id);
+  if (e1 && /po_number/i.test(e1.message || '')) {
+    delete reqPatch.po_number;
+    ({ error: e1 } = await sb.from('requests').update(reqPatch).eq('id', id));
+  }
+  if (e1) { toast('Error approving request: ' + e1.message, true); return; }
+  const poFields = {
     item:       pricedItems.length === 1 ? pricedItems[0].item : `${pricedItems.length} items`,
     qty:        pricedItems[0].qty, unit: pricedItems[0].unit,
     supplier:   pricedItems[0].supplier,
     unit_price: pricedItems[0].unit_price, total: grandTotal,
     items:      pricedItems,
     delivery: document.getElementById(`adeliv-${id}`)?.value || null, notes: req.notes,
-    project: req.project || '',
-    issued_by: S.user, issued_at: approvedAt, delivery_status: 'issued'
-  }).select().single();
-  if (e2) { toast('Error creating PO', true); return; }
+    project: req.project || ''
+  };
+  let poData, e2;
+  if (existingPO) {
+    ({ data: poData, error: e2 } = await sb.from('purchase_orders').update(poFields).eq('id', existingPO.id).select().single());
+  } else {
+    ({ data: poData, error: e2 } = await sb.from('purchase_orders').insert({
+      po_number: poNumber, ...poFields,
+      issued_by: S.user, issued_at: approvedAt, delivery_status: 'issued'
+    }).select().single());
+  }
+  if (e2) { toast(`Error ${existingPO?'updating':'creating'} PO: ` + e2.message, true); return; }
   req.status = 'approved'; req.approved_by = S.user; req.approved_at = approvedAt;
-  req.total = grandTotal; req.items = pricedItems;
-  S.pos.push(poData);
+  req.total = grandTotal; req.items = pricedItems; req.po_number = poNumber;
+  if (existingPO) {
+    const i = S.pos.findIndex(p => p.id === existingPO.id);
+    if (i > -1) S.pos[i] = poData;
+  } else {
+    S.pos.push(poData);
+  }
   renderRequests(); renderPOs(); renderPendingApprovals(); updateDashboard();
-  toast(`Approved ✓  ${poNumber} generated`);
+  toast(`Approved ✓  ${poNumber} ${existingPO ? 'updated' : 'generated'}`);
+}
+
+async function reReviewRequest(id) {
+  const r = S.requests.find(x => x.id === id); if (!r) return;
+  if (!confirm(`Send ${r.ref} back for review?\n\nYou can re-enter prices and approve it again${r.po_number ? ` — ${r.po_number} will be updated on approval` : ''}.`)) return;
+  const { error } = await sb.from('requests').update({ status: 'pending' }).eq('id', id);
+  if (error) { toast('Error: ' + error.message, true); return; }
+  r.status = 'pending';
+  renderRequests(); updateDashboard();
+  showView('pos'); setPOFilter('pending');
+  toast(`${r.ref} is back in review — adjust prices and approve`);
 }
 
 async function rejectRequest(id) {
@@ -1108,6 +1137,7 @@ function renderRequests() {
     <td class="td"><div class="flex items-center gap-3 whitespace-nowrap">
       <button onclick="openPR(${r.id})" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">View / PDF</button>
       <button onclick="editRequest(${r.id})" class="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300">Edit</button>
+      ${r.status==='approved'?`<button onclick="reReviewRequest(${r.id})" class="text-xs font-semibold text-purple-700 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300">Review Again</button>`:''}
       <button onclick="deleteRequest(${r.id})" class="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300">Delete</button>
     </div></td>
   </tr>`;}).join('');
@@ -1447,9 +1477,9 @@ function renderPendingApprovals() {
         <input type="text" value="${it.item}" readonly class="field-input bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300" style="font-size:12px;cursor:default;">
         <input type="number" value="${it.qty}" readonly class="field-input bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-center" style="font-size:12px;cursor:default;">
         <input type="text" value="${it.unit}" readonly class="field-input bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300" style="font-size:12px;cursor:default;">
-        <input id="asup-${r.id}-${idx}" type="text" list="suppliers-list" placeholder="Type or select…" class="field-input" style="font-size:12px;" autocomplete="off">
-        <input id="aprice-${r.id}-${idx}" type="number" min="0" step="0.01" placeholder="Total price (SAR)" oninput="calcApprovalTotal(${r.id})" class="field-input" style="font-size:12px;">
-        <span id="aline-${r.id}-${idx}" class="text-xs font-semibold text-gray-600 dark:text-gray-300 text-right">SAR 0.00</span>
+        <input id="asup-${r.id}-${idx}" type="text" list="suppliers-list" placeholder="Type or select…" value="${it.supplier||''}" class="field-input" style="font-size:12px;" autocomplete="off">
+        <input id="aprice-${r.id}-${idx}" type="number" min="0" step="0.01" placeholder="Total price (SAR)" value="${it.total||''}" oninput="calcApprovalTotal(${r.id})" class="field-input" style="font-size:12px;">
+        <span id="aline-${r.id}-${idx}" class="text-xs font-semibold text-gray-600 dark:text-gray-300 text-right">SAR ${fmt(it.total||0)}</span>
       </div>`).join('');
     return `
     <div class="bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-3">
@@ -1479,11 +1509,11 @@ function renderPendingApprovals() {
       <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
         <div class="flex items-center gap-2">
           <label class="field-label mb-0">Required Delivery By</label>
-          <input id="adeliv-${r.id}" type="date" class="field-input" style="font-size:12px;padding:4px 8px;width:150px;">
+          <input id="adeliv-${r.id}" type="date" value="${r.delivery||''}" class="field-input" style="font-size:12px;padding:4px 8px;width:150px;">
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-500 font-semibold">Grand Total:</span>
-          <span id="atotal-${r.id}" class="text-sm font-bold text-blue-700 dark:text-blue-400">SAR 0.00</span>
+          <span id="atotal-${r.id}" class="text-sm font-bold text-blue-700 dark:text-blue-400">SAR ${fmt(its.reduce((s,i)=>s+(parseFloat(i.total)||0),0))}</span>
         </div>
       </div>
     </div>`;}).join('');
