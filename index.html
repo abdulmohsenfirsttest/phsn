@@ -267,7 +267,7 @@
               <select id="p-cat" class="field-input"><option>Construction Materials</option><option>Food &amp; Beverages</option><option>Office Supplies</option><option>Equipment</option><option>Other</option></select>
             </div>
             <div><label class="field-label">Unit</label>
-              <select id="p-unit" class="field-input"><option>Bag</option><option>Kg</option><option>Ton</option><option>Unit</option><option>Box</option><option>Liter</option><option>Meter</option><option>Roll</option><option>Pcs</option><option>Cube</option></select>
+              <select id="p-unit" class="field-input"><option>Bag</option><option>Kg</option><option>Ton</option><option>Unit</option><option>Box</option><option>Liter</option><option>Meter</option><option>Roll</option><option>Pcs</option><option>Cube</option><option>Sqm</option><option>Cbm</option><option>Lm</option><option>Ls</option></select>
             </div>
             <div><label class="field-label">Unit Price (SAR)</label><input id="p-price"     type="number" placeholder="0.00" step="0.01" class="field-input"></div>
             <div><label class="field-label">Min. Stock Level</label><input id="p-min-stock" type="number" placeholder="0"              class="field-input"></div>
@@ -785,7 +785,7 @@ function addPRLine() {
     S.products.map(p=>`<option value="${p.name}" data-unit="${p.unit||''}" data-price="${p.price||''}">${p.name}</option>`).join('');
   const supplierOpts = '<option value="">— Select —</option>' +
     S.suppliers.filter(s=>s.status==='active').map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
-  const unitOpts = ['Unit','Bag','Kg','Ton','Box','Liter','Meter','Pcs','Cube'].map(u=>`<option>${u}</option>`).join('');
+  const unitOpts = ['Unit','Bag','Kg','Ton','Box','Liter','Meter','Pcs','Cube','Sqm','Cbm','Lm','Ls'].map(u=>`<option>${u}</option>`).join('');
   const row = document.createElement('div');
   row.dataset.line = n;
   row.className = 'grid gap-3 items-center';
@@ -1040,7 +1040,7 @@ function initPOForm() {
 function addPOLine() {
   poLineCount++;
   const n = poLineCount;
-  const unitOpts = ['Unit','Bag','Kg','Ton','Box','Liter','Meter','Pcs','Cube'].map(u=>`<option>${u}</option>`).join('');
+  const unitOpts = ['Unit','Bag','Kg','Ton','Box','Liter','Meter','Pcs','Cube','Sqm','Cbm','Lm','Ls'].map(u=>`<option>${u}</option>`).join('');
   const row = document.createElement('div');
   row.dataset.poline = n;
   row.className = 'grid gap-3 items-center';
