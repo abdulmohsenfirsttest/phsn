@@ -1300,8 +1300,12 @@ function calcApprovalTotal(reqId) {
     const el = document.getElementById(`aline-${reqId}-${idx}`);
     if (el) el.textContent = `SAR ${fmt(total)}`;
   });
+  const sub = document.getElementById(`asub-${reqId}`);
+  const vat = document.getElementById(`avat-${reqId}`);
   const tot = document.getElementById(`atotal-${reqId}`);
-  if (tot) tot.textContent = `SAR ${fmt(grand)}`;
+  if (sub) sub.textContent = `SAR ${fmt(grand)}`;
+  if (vat) vat.textContent = `+ SAR ${fmt(grand*0.15)}`;
+  if (tot) tot.textContent = `SAR ${fmt(grand*1.15)}`;
 }
 
 async function approveRequest(id) {
@@ -1796,9 +1800,10 @@ function renderPendingApprovals() {
           <label class="field-label mb-0">Delivery Date <span class="font-normal text-gray-400">(optional)</span></label>
           <input id="adeliv-${r.id}" type="date" value="${r.delivery||''}" class="field-input" style="font-size:12px;padding:4px 8px;width:150px;">
         </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-gray-500 font-semibold">Grand Total:</span>
-          <span id="atotal-${r.id}" class="text-sm font-bold text-blue-700 dark:text-blue-400">SAR ${fmt(its.reduce((s,i)=>s+(parseFloat(i.total)||0),0))}</span>
+        <div class="text-right space-y-0.5">
+          <div class="text-xs text-gray-500 dark:text-gray-400">Subtotal: <span id="asub-${r.id}" class="font-semibold text-gray-700 dark:text-gray-200">SAR ${fmt(its.reduce((s,i)=>s+(parseFloat(i.total)||0),0))}</span></div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">VAT/Tax (15%): <span id="avat-${r.id}" class="font-semibold text-gray-700 dark:text-gray-200">+ SAR ${fmt(its.reduce((s,i)=>s+(parseFloat(i.total)||0),0)*0.15)}</span></div>
+          <div class="text-sm font-bold text-blue-700 dark:text-blue-400">Total Invoice Amount: <span id="atotal-${r.id}">SAR ${fmt(its.reduce((s,i)=>s+(parseFloat(i.total)||0),0)*1.15)}</span></div>
         </div>
       </div>
     </div>`;}).join('');
