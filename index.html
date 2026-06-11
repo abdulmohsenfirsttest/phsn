@@ -1507,9 +1507,17 @@ function openPR(id) {
 
       ${priced?`<div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
         <div style="min-width:230px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;">
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #e5e7eb;">
+            <span style="font-size:12px;color:#6b7280;">Sub Total</span>
+            <span style="font-size:12px;font-weight:600;">SAR ${fmt(grandTotal)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #e5e7eb;">
+            <span style="font-size:12px;color:#6b7280;">VAT (15%)</span>
+            <span style="font-size:12px;font-weight:600;">SAR ${fmt(grandTotal*0.15)}</span>
+          </div>
           <div style="display:flex;justify-content:space-between;padding:10px 14px;background:#5b1f82;">
-            <span style="font-size:13px;font-weight:700;color:#fff;">Total</span>
-            <span style="font-size:14px;font-weight:900;color:#fff;">SAR ${fmt(grandTotal)}</span>
+            <span style="font-size:13px;font-weight:700;color:#fff;">Total (incl. VAT)</span>
+            <span style="font-size:14px;font-weight:900;color:#fff;">SAR ${fmt(grandTotal*1.15)}</span>
           </div>
         </div>
       </div>`:`<div style="margin-bottom:20px;"></div>`}
@@ -1902,9 +1910,13 @@ function openPO(id) {
             <span style="font-size:12px;color:#6b7280;">Sub Total</span>
             <span style="font-size:12px;font-weight:600;">SAR ${fmt(grandTotal)}</span>
           </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #e5e7eb;">
+            <span style="font-size:12px;color:#6b7280;">VAT (15%)</span>
+            <span style="font-size:12px;font-weight:600;">SAR ${fmt(grandTotal*0.15)}</span>
+          </div>
           <div style="display:flex;justify-content:space-between;padding:10px 14px;background:#5b1f82;">
-            <span style="font-size:13px;font-weight:700;color:#fff;">Total</span>
-            <span style="font-size:14px;font-weight:900;color:#fff;">SAR ${fmt(grandTotal)}</span>
+            <span style="font-size:13px;font-weight:700;color:#fff;">Total (incl. VAT)</span>
+            <span style="font-size:14px;font-weight:900;color:#fff;">SAR ${fmt(grandTotal*1.15)}</span>
           </div>
         </div>
       </div>
