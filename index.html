@@ -1783,10 +1783,7 @@ function renderPendingApprovals() {
       </div>
       ${itemRows}
       <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-        <div class="flex items-center gap-2">
-          <label class="field-label mb-0">Required Delivery By</label>
-          <input id="adeliv-${r.id}" type="date" value="${r.delivery||''}" class="field-input" style="font-size:12px;padding:4px 8px;width:150px;">
-        </div>
+        <span></span>
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-500 font-semibold">Grand Total:</span>
           <span id="atotal-${r.id}" class="text-sm font-bold text-blue-700 dark:text-blue-400">SAR ${fmt(its.reduce((s,i)=>s+(parseFloat(i.total)||0),0))}</span>
