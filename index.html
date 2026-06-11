@@ -582,12 +582,17 @@
         </div>
 
         <div id="addUserForm" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 mb-4">
-          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">Create Account</h3>
+          <h3 id="userFormTitle" class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">Create Account</h3>
           <div class="grid grid-cols-3 gap-4">
             <div><label class="field-label">Full Name *</label>     <input id="u-name"  type="text"     placeholder="e.g. Riyad"        class="field-input"></div>
             <div><label class="field-label">Email *</label>         <input id="u-email" type="email"    placeholder="user@company.com"  class="field-input"></div>
-            <div><label class="field-label">Account Number *</label><input id="u-acct"  type="text" inputmode="numeric" maxlength="6" class="field-input"></div>
-            <div><label class="field-label">Password *</label>      <input id="u-pass"  type="text"     placeholder="Min 6 characters"  class="field-input"></div>
+            <div><label class="field-label">Account Number *</label>
+              <div class="flex gap-2">
+                <input id="u-acct" type="text" inputmode="numeric" maxlength="6" class="field-input flex-1">
+                <button onclick="document.getElementById('u-acct').value=genAcctNo()" class="btn-secondary" style="font-size:11px;padding:5px 10px;white-space:nowrap;" title="Generate a unique 6-digit number">Generate</button>
+              </div>
+            </div>
+            <div><label class="field-label" id="u-pass-label">Password *</label><input id="u-pass" type="text" placeholder="Min 6 characters" class="field-input"></div>
             <div><label class="field-label">Role</label>
               <select id="u-role" class="field-input">
                 <option value="employee">Employee — own PRs only, no prices</option>
@@ -597,7 +602,7 @@
           </div>
           <div class="flex justify-end gap-2 mt-4">
             <button onclick="toggleForm('addUserForm')" class="btn-cancel">Cancel</button>
-            <button onclick="saveUser()" class="btn-primary">Create Account</button>
+            <button onclick="saveUser()" id="userSubmitBtn" class="btn-primary">Create Account</button>
           </div>
         </div>
 
@@ -667,7 +672,7 @@ const S = {
   user:'', role:'', userId:null, accountNo:'',
   suppliers:[], products:[], requests:[], pos:[], inventory:[], users:null,
   reqFilter:'all', invFilter:'all', poFilter:'all',
-  activePO: null, activeDocNumber: null, editingReq: null, editingPO: null
+  activePO: null, activeDocNumber: null, editingReq: null, editingPO: null, editingUser: null
 };
 
 // ==================== DARK MODE ====================
@@ -765,9 +770,31 @@ function genAcctNo() {
 }
 
 function initUserForm() {
+  S.editingUser = null;
   ['u-name','u-email','u-pass'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('u-role').value = 'employee';
   document.getElementById('u-acct').value = genAcctNo();
+  document.getElementById('userFormTitle').textContent = 'Create Account';
+  document.getElementById('userSubmitBtn').textContent = 'Create Account';
+  document.getElementById('u-pass-label').textContent  = 'Password *';
+  document.getElementById('u-pass').placeholder = 'Min 6 characters';
+}
+
+function editUser(id) {
+  const u = (S.users||[]).find(x => x.id === id); if (!u) return;
+  const form = document.getElementById('addUserForm');
+  form.classList.remove('hidden');
+  document.getElementById('u-name').value  = u.name;
+  document.getElementById('u-email').value = u.email;
+  document.getElementById('u-acct').value  = u.account_no;
+  document.getElementById('u-role').value  = u.role;
+  document.getElementById('u-pass').value  = '';
+  S.editingUser = id;
+  document.getElementById('userFormTitle').textContent = `Edit Account — ${u.name} (${u.account_no})`;
+  document.getElementById('userSubmitBtn').textContent = 'Save Changes';
+  document.getElementById('u-pass-label').textContent  = 'New Password (leave blank to keep current)';
+  document.getElementById('u-pass').placeholder = 'Leave blank to keep current';
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function saveUser() {
@@ -776,11 +803,37 @@ async function saveUser() {
   const acct  = q('u-acct');
   const pass  = document.getElementById('u-pass').value;
   const role  = document.getElementById('u-role').value;
-  if (!name || !email || !pass)        { toast('Name, email and password are required', true); return; }
-  if (!/^\d{6}$/.test(acct))           { toast('Account number must be exactly 6 digits', true); return; }
-  if (pass.length < 6)                 { toast('Password must be at least 6 characters', true); return; }
-  if ((S.users||[]).some(u => u.account_no === acct))               { toast('That account number is already in use', true); return; }
-  if ((S.users||[]).some(u => u.email.toLowerCase() === email))     { toast('That email is already in use', true); return; }
+  if (!name || !email)       { toast('Name and email are required', true); return; }
+  if (!/^\d{6}$/.test(acct)) { toast('Account number must be exactly 6 digits', true); return; }
+  const others = (S.users||[]).filter(u => u.id !== S.editingUser);
+  if (others.some(u => u.account_no === acct))           { toast('That account number is already in use', true); return; }
+  if (others.some(u => u.email.toLowerCase() === email)) { toast('That email is already in use', true); return; }
+  if (pass && pass.length < 6) { toast('Password must be at least 6 characters', true); return; }
+
+  if (S.editingUser) {
+    const orig = S.users.find(u => u.id === S.editingUser); if (!orig) return;
+    if (S.editingUser === S.userId && role !== 'admin') { toast('You cannot remove your own admin role', true); return; }
+    if (acct !== orig.account_no && !pass) { toast('Account number changed — please also set a new password (passwords are tied to the account number)', true); return; }
+    const patch = { name, email, account_no: acct, role };
+    if (pass) patch.password_hash = await sha256(`${acct}:${pass}`);
+    const { data, error } = await sb.from('app_users').update(patch).eq('id', S.editingUser).select('id,account_no,email,name,role,created_at').single();
+    if (error) { toast('Error updating account: ' + error.message, true); return; }
+    const idx = S.users.findIndex(u => u.id === S.editingUser);
+    if (idx > -1) S.users[idx] = data;
+    const isSelf = S.editingUser === S.userId;
+    S.editingUser = null;
+    toggleForm('addUserForm');
+    renderUsers();
+    if (isSelf) {
+      localStorage.setItem('phsn_user', JSON.stringify({ id: data.id, account_no: data.account_no, email: data.email, name: data.name, role: data.role }));
+      location.reload();
+      return;
+    }
+    toast(`${data.name}'s account updated — give them the new details`);
+    return;
+  }
+
+  if (!pass) { toast('Password is required', true); return; }
   const password_hash = await sha256(`${acct}:${pass}`);
   const { data, error } = await sb.from('app_users').insert({ account_no: acct, email, name, role, password_hash }).select('id,account_no,email,name,role,created_at').single();
   if (error) { toast('Error creating account: ' + error.message, true); return; }
@@ -824,6 +877,7 @@ async function renderUsers() {
     <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${u.role==='admin'?'badge-purple':'badge-blue'}">${u.role==='admin'?'Admin':'Employee'}</span></td>
     <td class="td text-gray-400 dark:text-gray-500 text-xs">${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
     <td class="td"><div class="flex items-center gap-3 whitespace-nowrap">
+      <button onclick="editUser(${u.id})" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">Edit</button>
       <button onclick="resetUserPassword(${u.id})" class="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300">Reset Password</button>
       ${u.id===S.userId?'':`<button onclick="deleteUser(${u.id})" class="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300">Delete</button>`}
     </div></td>
