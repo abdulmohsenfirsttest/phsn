@@ -1391,7 +1391,6 @@ function renderRequests() {
   const tb = document.getElementById('requestsTbody');
   const kw = search('search-requests');
   let list = S.requests;
-  if (S.role !== 'admin') list = list.filter(r => (r.submitted_by||'') === S.user || r.status === 'approved');
   if (S.reqFilter!=='all') list = list.filter(r=>r.status===S.reqFilter);
   if (kw) list = list.filter(r=>r.item.toLowerCase().includes(kw)||(r.supplier||'').toLowerCase().includes(kw)||(r.ref||'').toLowerCase().includes(kw));
   if (!list.length) { tb.innerHTML=`<tr><td colspan="9" class="empty-row">No requests found</td></tr>`; return; }
