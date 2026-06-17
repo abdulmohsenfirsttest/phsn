@@ -120,7 +120,7 @@ create table if not exists app_sessions (
 
 -- Verify account + email + password, issue a session token
 create or replace function login(p_account text, p_email text, p_pass text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare v_user app_users%rowtype; v_token text;
 begin
   select * into v_user from app_users
@@ -139,8 +139,9 @@ begin
 end; $$;
 
 -- Resolve a session token back to its user (used by every other secure function)
-create or replace function session_user(p_token text)
-returns app_users language sql security definer set search_path = public as $$
+-- NB: named app_session_user because session_user is a reserved word in Postgres
+create or replace function app_session_user(p_token text)
+returns app_users language sql security definer set search_path = public, extensions as $$
   select u.* from app_users u
   join app_sessions s on s.user_id = u.id
   where s.token_hash = encode(digest(p_token,'sha256'),'hex')
@@ -149,13 +150,13 @@ $$;
 
 -- End a session
 create or replace function logout(p_token text)
-returns void language sql security definer set search_path = public as $$
+returns void language sql security definer set search_path = public, extensions as $$
   delete from app_sessions where token_hash = encode(digest(p_token,'sha256'),'hex');
 $$;
 
-grant execute on function login(text,text,text)  to anon, authenticated;
-grant execute on function session_user(text)     to anon, authenticated;
-grant execute on function logout(text)           to anon, authenticated;
+grant execute on function login(text,text,text)      to anon, authenticated;
+grant execute on function app_session_user(text)     to anon, authenticated;
+grant execute on function logout(text)               to anon, authenticated;
 
 -- ============================================================
 --  SEED ACCOUNTS (template — set your own hashes/passwords)
