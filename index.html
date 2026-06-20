@@ -250,7 +250,7 @@
         </div>
 
         <div id="addSupplierForm" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 mb-4">
-          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">New Supplier</h3>
+          <h3 id="supplierFormTitle" class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">New Supplier</h3>
           <div class="grid grid-cols-3 gap-4">
             <div><label class="field-label">Company Name *</label>  <input id="s-name"    type="text"  placeholder="e.g. Al-Rashid Trading" class="field-input"></div>
             <div><label class="field-label">Contact Person</label>  <input id="s-contact" type="text"  placeholder="Full name"              class="field-input"></div>
@@ -266,7 +266,7 @@
           </div>
           <div class="flex justify-end gap-2 mt-4">
             <button onclick="toggleForm('addSupplierForm')" class="btn-cancel">Cancel</button>
-            <button onclick="saveSupplier()" class="btn-primary">Save Supplier</button>
+            <button onclick="saveSupplier()" id="supplierSubmitBtn" class="btn-primary">Save Supplier</button>
           </div>
         </div>
 
@@ -672,7 +672,7 @@ const S = {
   user:'', role:'', userId:null, accountNo:'',
   suppliers:[], products:[], requests:[], pos:[], inventory:[], users:null,
   reqFilter:'all', invFilter:'all', poFilter:'all',
-  activePO: null, activeDocNumber: null, editingReq: null, editingPO: null, editingUser: null
+  activePO: null, activeDocNumber: null, editingReq: null, editingPO: null, editingUser: null, editingSupplier: null
 };
 
 // ==================== DARK MODE ====================
@@ -935,6 +935,7 @@ function toggleForm(id) {
   const el = document.getElementById(id);
   el.classList.toggle('hidden');
   if (!el.classList.contains('hidden')) {
+    if (id === 'addSupplierForm') { initSupplierForm(); }
     if (id === 'addRequestForm') { initPRForm(); }
     if (id === 'addPOForm')      { initPOForm(); }
     if (id === 'addUserForm')    { initUserForm(); }
@@ -963,18 +964,53 @@ function getStock(name) {
 function search(id) { return (document.getElementById(id)?.value||'').toLowerCase(); }
 
 // ==================== SUPPLIERS ====================
+function initSupplierForm() {
+  S.editingSupplier = null;
+  ['s-name','s-contact','s-phone','s-email','s-address'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('s-status').value = 'active';
+  document.getElementById('supplierFormTitle').textContent = 'New Supplier';
+  document.getElementById('supplierSubmitBtn').textContent = 'Save Supplier';
+}
+
+function editSupplier(id) {
+  const s = S.suppliers.find(x => x.id === id); if (!s) return;
+  const form = document.getElementById('addSupplierForm');
+  form.classList.remove('hidden');
+  document.getElementById('s-name').value    = s.name || '';
+  document.getElementById('s-contact').value = s.contact || '';
+  document.getElementById('s-phone').value   = s.phone || '';
+  document.getElementById('s-email').value   = s.email || '';
+  document.getElementById('s-address').value = s.address || '';
+  document.getElementById('s-status').value  = s.status || 'active';
+  S.editingSupplier = id;
+  document.getElementById('supplierFormTitle').textContent = `Edit Supplier — ${s.name}`;
+  document.getElementById('supplierSubmitBtn').textContent = 'Save Changes';
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function saveSupplier() {
   const name = q('s-name');
   if (!name) { toast('Company name is required', true); return; }
-  const code = `SUP-${String(S.suppliers.length + 1).padStart(3,'0')}`;
-  const { data, error } = await sb.from('suppliers').insert({
-    code, name, contact:q('s-contact'), phone:q('s-phone'),
+  const fields = {
+    name, contact:q('s-contact'), phone:q('s-phone'),
     email:q('s-email'), address:q('s-address'),
     status: document.getElementById('s-status').value
-  }).select().single();
+  };
+  if (S.editingSupplier) {
+    const { data, error } = await sb.from('suppliers').update(fields).eq('id', S.editingSupplier).select().single();
+    if (error) { toast('Error updating supplier: ' + error.message, true); return; }
+    const idx = S.suppliers.findIndex(x => x.id === S.editingSupplier);
+    if (idx > -1) S.suppliers[idx] = data;
+    S.editingSupplier = null;
+    toggleForm('addSupplierForm');
+    renderSuppliers(); updateDashboard();
+    toast('Supplier updated');
+    return;
+  }
+  const code = `SUP-${String(S.suppliers.length + 1).padStart(3,'0')}`;
+  const { data, error } = await sb.from('suppliers').insert({ code, ...fields }).select().single();
   if (error) { toast('Error saving supplier: ' + error.message, true); return; }
   S.suppliers.push(data);
-  ['s-name','s-contact','s-phone','s-email','s-address'].forEach(id=>document.getElementById(id).value='');
   toggleForm('addSupplierForm');
   renderSuppliers(); updateDashboard();
   toast('Supplier added');
@@ -1005,7 +1041,10 @@ function renderSuppliers() {
       <td class="td text-gray-600 dark:text-gray-400">${s.address||'—'}</td>
       <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${s.status==='active'?'badge-green':'badge-gray'}">${s.status==='active'?'Active':'Inactive'}</span></td>
       <td class="td font-semibold text-gray-900 dark:text-gray-200">${pos}</td>
-      <td class="td"><button onclick="deleteSupplier(${s.id})" class="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300">Delete</button></td>
+      <td class="td"><div class="flex items-center gap-3 whitespace-nowrap">
+        <button onclick="editSupplier(${s.id})" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">Edit</button>
+        <button onclick="deleteSupplier(${s.id})" class="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300">Delete</button>
+      </div></td>
     </tr>`;
   }).join('');
 }
