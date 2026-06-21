@@ -413,6 +413,7 @@
               <button onclick="setPOFilter('issued')"   data-f="issued"   class="filter-btn">Issued</button>
               <button onclick="setPOFilter('received')" data-f="received" class="filter-btn">Received</button>
               <button onclick="setPOFilter('paid')"     data-f="paid"     class="filter-btn">Paid</button>
+              <button onclick="setPOFilter('rejected')" data-f="rejected" class="filter-btn">Rejected</button>
             </div>
           </div>
         </div>
@@ -1488,7 +1489,7 @@ async function approveRequest(id) {
   } else {
     S.pos.push(poData);
   }
-  renderRequests(); renderPOs(); renderPendingApprovals(); updateDashboard();
+  renderRequests(); renderPOs(); renderPendingApprovals(S.poFilter==='rejected'?'rejected':'pending'); updateDashboard();
   toast(`Approved ✓  ${poNumber} ${existingPO ? 'updated' : 'generated'}`);
 }
 
@@ -1881,26 +1882,30 @@ function setPOFilter(f) {
   S.poFilter = f;
   document.querySelectorAll('#posFilterBtns .filter-btn').forEach(b=>b.classList.toggle('active-filter',b.dataset.f===f));
   const isPending = f === 'pending';
-  document.getElementById('pendingApprovalsSection').classList.toggle('hidden', !isPending);
-  document.getElementById('posTableSection').classList.toggle('hidden', isPending);
-  if (isPending) renderPendingApprovals(); else renderPOs();
+  const isRejected = f === 'rejected';
+  const showApproval = isPending || isRejected;
+  document.getElementById('pendingApprovalsSection').classList.toggle('hidden', !showApproval);
+  document.getElementById('posTableSection').classList.toggle('hidden', showApproval);
+  if (showApproval) renderPendingApprovals(isRejected ? 'rejected' : 'pending'); else renderPOs();
 }
 
-function renderPendingApprovals() {
+function renderPendingApprovals(status = 'pending') {
   const container = document.getElementById('pendingApprovalsList');
   const badge = document.getElementById('pendingApprovalCount');
   if (!container) return;
-  const pending = S.requests.filter(r => r.status === 'pending');
+  const pendingCount = S.requests.filter(r => r.status === 'pending').length;
   if (badge) {
-    badge.textContent = pending.length;
-    badge.classList.toggle('hidden', pending.length === 0);
+    badge.textContent = pendingCount;
+    badge.classList.toggle('hidden', pendingCount === 0);
   }
-  if (!pending.length) {
-    container.innerHTML = '<p class="text-xs text-gray-400 py-2">No pending requests</p>';
+  const rejected = status === 'rejected';
+  const list = S.requests.filter(r => r.status === status);
+  if (!list.length) {
+    container.innerHTML = `<p class="text-xs text-gray-400 py-2">No ${rejected ? 'rejected' : 'pending'} requests</p>`;
     return;
   }
   const colStyle = 'grid-template-columns:1fr 70px 80px 1fr 110px 90px';
-  container.innerHTML = pending.map(r => {
+  container.innerHTML = list.map(r => {
     const its = r.items && r.items.length > 0 ? r.items : [{ item: r.item, qty: r.qty, unit: r.unit }];
     const itemRows = its.map((it, idx) => `
       <div class="grid gap-3 items-center ${idx>0?'border-t border-gray-100 dark:border-gray-800':''} py-1.5" style="${colStyle}">
@@ -1912,10 +1917,11 @@ function renderPendingApprovals() {
         <span id="aline-${r.id}-${idx}" class="text-xs font-semibold text-gray-600 dark:text-gray-300 text-right">SAR ${fmt(it.total||0)}</span>
       </div>`).join('');
     return `
-    <div class="bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-3">
+    <div class="bg-white dark:bg-gray-900 border ${rejected?'border-red-200 dark:border-red-800':'border-orange-200 dark:border-orange-800'} rounded-xl p-4 mb-3">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <span class="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">${r.ref}</span>
+          ${rejected?`<span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-red">Rejected</span>`:''}
           ${r.project?`<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">${r.project}</span>`:''}
           <span class="text-xs text-gray-400">${new Date(r.submitted_at).toLocaleDateString()}</span>
           ${its.length>1?`<span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${its.length} items</span>`:''}
@@ -1923,7 +1929,7 @@ function renderPendingApprovals() {
         </div>
         <div class="flex gap-2">
           <button onclick="approveRequest(${r.id})" class="btn-primary" style="font-size:11px;padding:5px 14px;background:#16a34a;">Approve</button>
-          <button onclick="rejectRequest(${r.id})" class="btn-cancel" style="font-size:11px;padding:5px 14px;color:#dc2626;border-color:#fca5a5;">Reject</button>
+          ${rejected?'':`<button onclick="rejectRequest(${r.id})" class="btn-cancel" style="font-size:11px;padding:5px 14px;color:#dc2626;border-color:#fca5a5;">Reject</button>`}
         </div>
       </div>
       <!-- Column headers -->
