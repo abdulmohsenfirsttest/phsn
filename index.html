@@ -137,6 +137,10 @@
         Inventory
       </button>
       <div class="border-t border-white/10 my-1.5"></div>
+      <button onclick="showView('projects')" id="nav-projects" class="sidebar-link hidden">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+        Projects
+      </button>
       <button onclick="showView('users')" id="nav-users" class="sidebar-link hidden">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
         Users
@@ -373,8 +377,8 @@
             Add Item
           </button>
           <div class="mb-3">
-            <label class="field-label">Project Name</label>
-            <input id="r-project" type="text" placeholder="e.g. Tower A, Office Fit-Out, Kitchen…" class="field-input w-full">
+            <label class="field-label">Project</label>
+            <select id="r-project" class="field-input w-full"><option value="">— Select a project —</option></select>
           </div>
           <div>
             <label class="field-label">Notes / Justification</label>
@@ -618,6 +622,36 @@
         </div>
       </div>
 
+      <!-- ===== PROJECTS (admin only) ===== -->
+      <div id="view-projects" class="view">
+        <div class="flex justify-end items-center mb-4">
+          <button onclick="toggleForm('addProjectForm')" class="btn-primary">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Create Project
+          </button>
+        </div>
+
+        <div id="addProjectForm" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 mb-4">
+          <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">Create Project</h3>
+          <div class="flex items-end gap-3">
+            <div class="flex-1"><label class="field-label">Project Name *</label><input id="pj-name" type="text" placeholder="e.g. Riyadh University of Arts" class="field-input" onkeydown="if(event.key==='Enter')saveProject()"></div>
+            <button onclick="saveProject()" class="btn-primary">Create</button>
+            <button onclick="toggleForm('addProjectForm')" class="btn-cancel">Cancel</button>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <tr><th class="th">#</th><th class="th">Project Name</th><th class="th">PRs</th><th class="th">Created</th><th class="th">Actions</th></tr>
+              </thead>
+              <tbody id="projectsTbody"><tr><td colspan="5" class="empty-row">No projects yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
   </main>
 </div>
@@ -670,7 +704,7 @@ let prLineCount = 0;
 // ==================== STATE ====================
 const S = {
   user:'', role:'', userId:null, accountNo:'',
-  suppliers:[], products:[], requests:[], pos:[], inventory:[], users:null,
+  suppliers:[], products:[], requests:[], pos:[], inventory:[], users:null, projects:[],
   reqFilter:'all', invFilter:'all', poFilter:'all',
   activePO: null, activeDocNumber: null, editingReq: null, editingPO: null, editingUser: null, editingSupplier: null
 };
@@ -748,8 +782,9 @@ function applyRole() {
   document.getElementById('sb-avatar').textContent   = (S.user[0] || 'U').toUpperCase();
   if (S.role === 'admin') {
     document.getElementById('nav-users').classList.remove('hidden');
+    document.getElementById('nav-projects').classList.remove('hidden');
   } else {
-    ['dashboard','suppliers','products','pos','inventory','reports','users'].forEach(v =>
+    ['dashboard','suppliers','products','pos','inventory','reports','users','projects'].forEach(v =>
       document.getElementById('nav-' + v)?.classList.add('hidden'));
     document.body.classList.add('role-employee');
   }
@@ -884,15 +919,66 @@ async function renderUsers() {
   </tr>`).join('');
 }
 
+// ==================== PROJECTS ====================
+function populateProjectDropdown() {
+  const sel = document.getElementById('r-project');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Select a project —</option>' +
+    S.projects.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+  sel.value = cur;
+}
+
+async function saveProject() {
+  const name = q('pj-name');
+  if (!name) { toast('Project name is required', true); return; }
+  if (S.projects.some(p => p.name.toLowerCase() === name.toLowerCase())) { toast('That project already exists', true); return; }
+  const { data, error } = await sb.from('projects').insert({ name }).select().single();
+  if (error) { toast('Error creating project: ' + error.message, true); return; }
+  S.projects.push(data);
+  S.projects.sort((a,b) => a.name.localeCompare(b.name));
+  document.getElementById('pj-name').value = '';
+  toggleForm('addProjectForm');
+  renderProjects(); populateProjectDropdown();
+  toast('Project created');
+}
+
+async function deleteProject(id) {
+  const p = S.projects.find(x => x.id === id); if (!p) return;
+  if (!confirm(`Delete project "${p.name}"? Existing PRs keep their project name; new PRs just won't list it.`)) return;
+  const { error } = await sb.from('projects').delete().eq('id', id);
+  if (error) { toast('Error deleting project: ' + error.message, true); return; }
+  S.projects = S.projects.filter(x => x.id !== id);
+  renderProjects(); populateProjectDropdown();
+  toast('Project deleted');
+}
+
+function renderProjects() {
+  if (S.role !== 'admin') return;
+  const tb = document.getElementById('projectsTbody');
+  if (!tb) return;
+  if (!S.projects.length) { tb.innerHTML = '<tr><td colspan="5" class="empty-row">No projects yet</td></tr>'; return; }
+  tb.innerHTML = S.projects.map((p,i) => {
+    const prs = S.requests.filter(r => (r.project||'') === p.name).length;
+    return `<tr class="border-t border-gray-100 dark:border-gray-800 dr">
+    <td class="td text-gray-400 dark:text-gray-500">${i+1}</td>
+    <td class="td font-semibold text-gray-900 dark:text-white">${p.name}</td>
+    <td class="td font-semibold text-gray-700 dark:text-gray-300">${prs}</td>
+    <td class="td text-gray-400 dark:text-gray-500 text-xs">${p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</td>
+    <td class="td"><button onclick="deleteProject(${p.id})" class="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300">Delete</button></td>
+  </tr>`;}).join('');
+}
+
 function setLoading(v) {
   const el = document.getElementById('loadingBar');
   if (el) el.classList.toggle('hidden', !v);
 }
 
 async function refreshAll() {
-  const [s, p, r, po, inv] = await Promise.all([
+  const [s, p, pj, r, po, inv] = await Promise.all([
     sb.from('suppliers').select('*').order('created_at'),
     sb.from('products').select('*').order('created_at'),
+    sb.from('projects').select('*').order('name'),
     sb.from('requests').select('*').order('submitted_at'),
     sb.from('purchase_orders').select('*').order('issued_at'),
     sb.from('inventory').select('*').order('created_at')
@@ -900,6 +986,7 @@ async function refreshAll() {
   if (s.error) { toast('Could not connect to database. Check Supabase setup.', true); console.error(s.error); return; }
   S.suppliers = s.data  || [];
   S.products  = p.data  || [];
+  S.projects  = pj.error ? [] : (pj.data || []);
   S.requests  = r.data  || [];
   S.pos       = po.data || [];
   S.inventory = inv.data|| [];
@@ -919,11 +1006,12 @@ function showView(v) {
     pos:       ['Purchase Orders (PO)','View and manage approved purchase orders'],
     inventory: ['Inventory','Track stock in and out'],
     reports:   ['Reports','Spending analytics and insights'],
-    users:     ['User Accounts','Create and manage login accounts']
+    users:     ['User Accounts','Create and manage login accounts'],
+    projects:  ['Projects','Create projects that purchase requests can be filed under']
   };
   document.getElementById('pageTitle').textContent    = T[v][0];
   document.getElementById('pageSubtitle').textContent = T[v][1];
-  const fn = {suppliers:renderSuppliers,products:renderProducts,requests:renderRequests,pos:renderPOs,inventory:renderInventory,reports:renderReports,users:renderUsers};
+  const fn = {suppliers:renderSuppliers,products:renderProducts,requests:renderRequests,pos:renderPOs,inventory:renderInventory,reports:renderReports,users:renderUsers,projects:renderProjects};
   if (fn[v]) fn[v]();
   if (v === 'dashboard') updateDashboard();
   if (v === 'requests') { renderRequests(); }
@@ -1117,6 +1205,7 @@ function initPRForm() {
   const sbtn = document.getElementById('prSubmitBtn'); if (sbtn) sbtn.textContent = 'Submit Request';
   const ttl  = document.getElementById('prFormTitle'); if (ttl)  ttl.textContent  = 'New Purchase Request (PR)';
   refreshAllPRDropdowns();
+  populateProjectDropdown();
   document.getElementById('prLinesTbody').innerHTML = '';
   prLineCount = 0;
   document.getElementById('r-project').value = '';
@@ -1320,7 +1409,10 @@ function editRequest(id) {
       sel.value = it.unit;
     }
   });
-  document.getElementById('r-project').value = r.project || '';
+  populateProjectDropdown();
+  const projSel = document.getElementById('r-project');
+  if (r.project && ![...projSel.options].some(o => o.value === r.project)) projSel.add(new Option(r.project, r.project));
+  projSel.value = r.project || '';
   document.getElementById('r-notes').value   = r.notes   || '';
   S.editingReq = id;
   document.getElementById('prSubmitBtn').textContent = 'Save Changes';
