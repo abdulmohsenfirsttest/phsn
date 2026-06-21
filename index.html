@@ -241,6 +241,39 @@
             </div>
           </div>
         </div>
+
+        <div class="grid grid-cols-3 gap-4 mt-4">
+          <!-- PO total by project -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">PO Total by Project</h3>
+              <button onclick="showView('pos')" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">View all</button>
+            </div>
+            <div id="dash-project-totals" class="px-4 py-3 space-y-2 min-h-[80px]">
+              <p class="text-xs text-gray-400 text-center py-3">No POs yet</p>
+            </div>
+          </div>
+          <!-- PRs awaiting decision -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">PRs Not Approved</h3>
+              <button onclick="showView('requests')" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">View all</button>
+            </div>
+            <div id="dash-unapproved" class="px-4 py-3 space-y-2 min-h-[80px]">
+              <p class="text-xs text-gray-400 text-center py-3">None</p>
+            </div>
+          </div>
+          <!-- Most ordered items -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">Most Ordered Items</h3>
+              <button onclick="showView('reports')" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Reports</button>
+            </div>
+            <div id="dash-top-items" class="px-4 py-3 space-y-2 min-h-[80px]">
+              <p class="text-xs text-gray-400 text-center py-3">No orders yet</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ===== SUPPLIERS ===== -->
@@ -2258,6 +2291,57 @@ function updateDashboard() {
         <span class="text-xs font-bold text-red-600 dark:text-red-400">${getStock(p.name)} left</span>
       </div>`).join('')
     : '<p class="text-xs text-gray-400 text-center py-3">No alerts</p>';
+
+  // PO total by project
+  const pt = document.getElementById('dash-project-totals');
+  if (pt) {
+    const byProj = {};
+    S.pos.forEach(p => { const k = (p.project||'').trim() || '— No project —'; byProj[k] = (byProj[k]||0) + Number(p.total||0); });
+    const projList = Object.entries(byProj).sort((a,b)=>b[1]-a[1]);
+    pt.innerHTML = projList.length
+      ? projList.map(([name,amt])=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0 gap-2">
+          <span class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" title="${name}">${name}</span>
+          <span class="text-xs font-bold text-gray-900 dark:text-white whitespace-nowrap">SAR ${fmt(amt)}</span>
+        </div>`).join('')
+      : '<p class="text-xs text-gray-400 text-center py-3">No POs yet</p>';
+  }
+
+  // PRs not approved (pending + rejected)
+  const ua = document.getElementById('dash-unapproved');
+  if (ua) {
+    const un = S.requests.filter(r=>r.status==='pending'||r.status==='rejected');
+    ua.innerHTML = un.length
+      ? un.slice(0,6).map(r=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0 gap-2">
+          <div class="min-w-0"><span class="text-xs font-bold ${r.status==='rejected'?'text-red-500':'text-orange-500'}">${r.ref}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400 truncate">${r.project||r.item}</span></div>
+          <span class="px-1.5 py-0.5 rounded-full text-xs font-semibold ${r.status==='rejected'?'badge-red':'badge-orange'} whitespace-nowrap">${r.status==='rejected'?'Rejected':'Pending'}</span>
+        </div>`).join('') + (un.length>6?`<p class="text-xs text-gray-400 pt-1">+${un.length-6} more</p>`:'')
+      : '<p class="text-xs text-gray-400 text-center py-3">None</p>';
+  }
+
+  // Most ordered items (by total amount + times ordered, from POs)
+  const ti = document.getElementById('dash-top-items');
+  if (ti) {
+    const items = {};
+    S.pos.forEach(po => {
+      const its = po.items && po.items.length ? po.items : [{item:po.item, qty:po.qty, total:po.total}];
+      its.forEach(it => {
+        const name = (it.item||'').trim(); if (!name) return;
+        if (!items[name]) items[name] = { amt:0, qty:0, times:0 };
+        items[name].amt   += Number(it.total||0);
+        items[name].qty   += Number(it.qty||0);
+        items[name].times += 1;
+      });
+    });
+    const top = Object.entries(items).sort((a,b)=>b[1].amt-a[1].amt).slice(0,6);
+    ti.innerHTML = top.length
+      ? top.map(([name,v])=>`<div class="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-800 last:border-0 gap-2">
+          <div class="min-w-0"><div class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" title="${name}">${name}</div>
+            <div class="text-xs text-gray-400">ordered ${v.times}×  ·  qty ${fmt(v.qty)}</div></div>
+          <span class="text-xs font-bold text-gray-900 dark:text-white whitespace-nowrap">SAR ${fmt(v.amt)}</span>
+        </div>`).join('')
+      : '<p class="text-xs text-gray-400 text-center py-3">No orders yet</p>';
+  }
 }
 
 document.getElementById('poModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
