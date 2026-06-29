@@ -1980,12 +1980,15 @@ function attachPayment(id) {
     toast('Uploading payment proof…');
     try {
       const path = await uploadPODoc(po, 'payment', file);
-      const patch = { payment_file: path, payment_by: S.user, payment_at: new Date().toISOString(), workflow_stage: 'awaiting_tax_invoice' };
+      // Attaching the proof of payment means the PO has been paid → also mark
+      // delivery_status 'paid' so it shows in the Paid filter and stays Paid
+      // once the cycle reaches Completed.
+      const patch = { payment_file: path, payment_by: S.user, payment_at: new Date().toISOString(), workflow_stage: 'awaiting_tax_invoice', delivery_status: 'paid' };
       const { data, error } = await sb.from('purchase_orders').update(patch).eq('id', id).select().single();
       if (error) { toast('Error saving payment: ' + error.message, true); return; }
       const i = S.pos.findIndex(p => p.id === id); if (i > -1) S.pos[i] = data;
       renderPOs(); updateDashboard();
-      toast(`Payment attached to ${po.po_number} → awaiting tax invoice`);
+      toast(`Payment attached to ${po.po_number} — marked Paid, awaiting tax invoice`);
     } catch (e) { toast('Upload failed: ' + (e.message || e), true); }
   });
 }
