@@ -73,6 +73,14 @@ create table if not exists purchase_orders (
   project         text,
   notes           text,
   delivery_status text default 'issued',  -- issued | partial | received | paid | cancelled
+  -- Payment / tax-invoice workflow (v1.1.0)
+  workflow_stage  text default 'awaiting_payment', -- awaiting_payment | awaiting_tax_invoice | completed
+  payment_file    text,        -- storage path in bucket 'po-documents' (proof of payment, by accountant)
+  payment_by      text,
+  payment_at      timestamptz,
+  tax_file        text,        -- storage path in bucket 'po-documents' (الفاتورة الضريبية / tax invoice, by purchasing)
+  tax_by          text,
+  tax_at          timestamptz,
   issued_by       text,
   issued_at       timestamptz default now()
 );
@@ -109,7 +117,7 @@ create table if not exists app_users (
   email         text not null unique,
   password_hash text not null,
   name          text not null,
-  role          text not null default 'employee',  -- admin | employee
+  role          text not null default 'employee',  -- admin | employee | accountant
   created_at    timestamptz default now()
 );
 
@@ -174,6 +182,19 @@ grant execute on function logout(text)               to anon, authenticated;
 --   ('100001','mosab@phsn.app','Mosab','admin',
 --     encode(digest('100001:Mosab@123','sha256'),'hex'))
 -- on conflict (account_no) do nothing;
+
+-- ============================================================
+--  STORAGE (v1.1.0)
+--  Private bucket 'po-documents' holds proof-of-payment + tax-invoice files.
+--  The app (anon/publishable key) may insert + select objects in this bucket
+--  only; files are shown via short-lived signed URLs (createSignedUrl).
+--    insert into storage.buckets (id,name,public) values
+--      ('po-documents','po-documents',false) on conflict (id) do nothing;
+--    create policy "po_docs anon insert" on storage.objects
+--      for insert to anon with check (bucket_id = 'po-documents');
+--    create policy "po_docs anon select" on storage.objects
+--      for select to anon using (bucket_id = 'po-documents');
+-- ============================================================
 
 -- ============================================================
 --  NOTE: Row-Level Security (RLS) is added in Phase 3 of the
