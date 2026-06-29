@@ -233,7 +233,7 @@
           <!-- Low stock alerts -->
           <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
             <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">⚠ Low Stock</h3>
+              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">Low Stock</h3>
               <button onclick="showView('products')" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">View all</button>
             </div>
             <div id="dash-low-stock" class="px-4 py-3 space-y-2 min-h-[80px]">
@@ -278,7 +278,7 @@
           <!-- POs awaiting payment (accountant) -->
           <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
             <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">🟡 Awaiting Payment</h3>
+              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">Awaiting Payment</h3>
               <button onclick="showView('pos');setPOFilter('awaiting_payment')" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">View all</button>
             </div>
             <div id="dash-awaiting-payment" class="px-4 py-3 space-y-2 min-h-[80px]">
@@ -288,7 +288,7 @@
           <!-- POs awaiting tax invoice (purchasing) -->
           <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
             <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">🟠 Awaiting Tax Invoice</h3>
+              <h3 class="text-xs font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">Awaiting Tax Invoice</h3>
               <button onclick="showView('pos');setPOFilter('awaiting_tax_invoice')" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">View all</button>
             </div>
             <div id="dash-awaiting-tax" class="px-4 py-3 space-y-2 min-h-[80px]">
@@ -464,9 +464,9 @@
             <input id="search-pos" oninput="renderPOs()" type="text" placeholder="Search POs…" class="field-input w-48 text-xs">
             <div class="flex gap-1.5 flex-wrap" id="posFilterBtns">
               <button onclick="setPOFilter('all')"      data-f="all"      class="filter-btn active-filter">All</button>
-              <button onclick="setPOFilter('awaiting_payment')"     data-f="awaiting_payment"     class="filter-btn">🟡 Awaiting Payment</button>
-              <button onclick="setPOFilter('awaiting_tax_invoice')" data-f="awaiting_tax_invoice" class="filter-btn">🟠 Awaiting Tax Invoice</button>
-              <button onclick="setPOFilter('completed')"            data-f="completed"            class="filter-btn">🟢 Completed</button>
+              <button onclick="setPOFilter('awaiting_payment')"     data-f="awaiting_payment"     class="filter-btn">Awaiting Payment</button>
+              <button onclick="setPOFilter('awaiting_tax_invoice')" data-f="awaiting_tax_invoice" class="filter-btn">Awaiting Tax Invoice</button>
+              <button onclick="setPOFilter('completed')"            data-f="completed"            class="filter-btn">Completed</button>
               <button onclick="setPOFilter('pending')"  data-f="pending"  class="filter-btn">Pending Approvals <span id="pendingApprovalCount" class="hidden ml-1 bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-tight">0</span></button>
               <button onclick="setPOFilter('issued')"   data-f="issued"   class="filter-btn">Issued</button>
               <button onclick="setPOFilter('received')" data-f="received" class="filter-btn">Received</button>
@@ -729,6 +729,7 @@
         <button onclick="closeModal()" class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-lg">&times;</button>
       </div>
     </div>
+    <div id="poAttachments"></div>
     <div id="poContent" class="p-7"></div>
   </div>
 </div>
@@ -1558,7 +1559,7 @@ async function approveRequest(id) {
     S.pos.push(poData);
   }
   renderRequests(); renderPOs(); renderPendingApprovals(S.poFilter==='rejected'?'rejected':'pending'); updateDashboard();
-  toast(`Approved ✓  ${poNumber} ${existingPO ? 'updated' : 'generated'}`);
+  toast(`Approved — ${poNumber} ${existingPO ? 'updated' : 'generated'}`);
 }
 
 async function reReviewRequest(id) {
@@ -1652,6 +1653,7 @@ function openPR(id) {
   const th = a => `padding:9px 12px;text-align:${a};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;`;
 
   document.getElementById('docModalTitle').textContent = 'Purchase Request';
+  renderPOAttachments(null);
   document.getElementById('poContent').innerHTML = `
     <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.5;background:#fff;">
 
@@ -2001,7 +2003,7 @@ function attachTaxInvoice(id) {
       if (error) { toast('Error saving tax invoice: ' + error.message, true); return; }
       const i = S.pos.findIndex(p => p.id === id); if (i > -1) S.pos[i] = data;
       renderPOs(); updateDashboard();
-      toast(`Tax invoice attached to ${po.po_number} → completed ✓`);
+      toast(`Tax invoice attached to ${po.po_number} → completed`);
     } catch (e) { toast('Upload failed: ' + (e.message || e), true); }
   });
 }
@@ -2013,6 +2015,25 @@ async function viewPOFile(id, kind) {
   const { data, error } = await sb.storage.from('po-documents').createSignedUrl(path, 3600);
   if (error || !data) { toast('Could not open file: ' + (error?.message || 'unknown'), true); return; }
   window.open(data.signedUrl, '_blank');
+}
+
+// Attachments bar shown inside the PO View modal (kept OUT of #poContent so it
+// isn't captured in the exported PDF). Each button opens the original uploaded
+// file (image or PDF) in a new tab via a signed URL.
+function renderPOAttachments(po) {
+  const el = document.getElementById('poAttachments');
+  if (!el) return;
+  const att = [];
+  if (po && po.payment_file) att.push({ label: 'Proof of Payment', kind: 'payment', by: po.payment_by, at: po.payment_at });
+  if (po && po.tax_file)     att.push({ label: 'Tax Invoice (الفاتورة الضريبية)', kind: 'tax', by: po.tax_by, at: po.tax_at });
+  if (!att.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40">
+    <span class="text-xs font-bold text-gray-500 uppercase tracking-wide mr-1">Attachments</span>
+    ${att.map(a => `<button onclick="viewPOFile(${po.id},'${a.kind}')" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 inline-flex items-center gap-1.5 border border-blue-200 dark:border-blue-800 rounded-lg px-2.5 py-1">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+      ${a.label} — View / PDF${a.by ? ` <span class="text-gray-400 font-normal">(${a.by}${a.at ? ', ' + new Date(a.at).toLocaleDateString() : ''})</span>` : ''}
+    </button>`).join('')}
+  </div>`;
 }
 
 function setPOFilter(f) {
@@ -2122,10 +2143,10 @@ function renderPOs() {
     <td class="td">${deliveryCell}</td>
     <td class="td"><div class="flex items-center gap-3 whitespace-nowrap">
       <button onclick="openPO(${po.id})" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">View / PDF</button>
-      ${po.payment_file?`<button onclick="viewPOFile(${po.id},'payment')" class="text-xs font-semibold text-green-600 dark:text-green-400 hover:underline">Payment ✓</button>`:''}
-      ${po.tax_file?`<button onclick="viewPOFile(${po.id},'tax')" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">Tax ✓</button>`:''}
-      ${canPay?`<button onclick="attachPayment(${po.id})" class="text-xs font-bold text-green-700 dark:text-green-400 hover:underline">📎 Attach Payment</button>`:''}
-      ${canTax?`<button onclick="attachTaxInvoice(${po.id})" class="text-xs font-bold text-purple-700 dark:text-purple-400 hover:underline">📎 Attach Tax Invoice</button>`:''}
+      ${po.payment_file?`<button onclick="viewPOFile(${po.id},'payment')" class="text-xs font-semibold text-green-600 dark:text-green-400 hover:underline">View Payment</button>`:''}
+      ${po.tax_file?`<button onclick="viewPOFile(${po.id},'tax')" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">View Tax</button>`:''}
+      ${canPay?`<button onclick="attachPayment(${po.id})" class="text-xs font-bold text-green-700 dark:text-green-400 hover:underline">Attach Payment</button>`:''}
+      ${canTax?`<button onclick="attachTaxInvoice(${po.id})" class="text-xs font-bold text-purple-700 dark:text-purple-400 hover:underline">Attach Tax Invoice</button>`:''}
       ${isAdmin?`<button onclick="editPO(${po.id})" class="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300">Edit</button>
       <button onclick="deletePO(${po.id})" class="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300">Delete</button>`:''}
     </div></td>
@@ -2139,6 +2160,7 @@ function openPO(id) {
   S.activePO = po;
   S.activeDocNumber = po.po_number;
   document.getElementById('docModalTitle').textContent = 'Purchase Order';
+  renderPOAttachments(po);
   const sup = S.suppliers.find(s=>s.name===po.supplier)||{};
   const issued   = new Date(po.issued_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   const delivery = po.delivery ? new Date(po.delivery+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : null;
